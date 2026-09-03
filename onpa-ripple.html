@@ -305,6 +305,12 @@
         <button class="chip" data-band="full">全体(オールジャンル)</button>
       </div>
 
+      <p class="section-label">検知モード</p>
+      <div class="chip-row" id="modeChips">
+        <button class="chip active" data-mode="beat">ビート検知(ドラムなどの曲向け)</button>
+        <button class="chip" data-mode="continuous">常時反応(BGM・アンビエント向け)</button>
+      </div>
+
       <div class="row">
         <label class="btn btn-file" for="bgImageInput">背景画像を追加(任意)</label>
         <input type="file" id="bgImageInput" accept="image/*">
@@ -434,6 +440,7 @@ const tabs = document.querySelectorAll('.tab');
 const panels = { play: document.getElementById('panel-play'), fx: document.getElementById('panel-fx') };
 const styleChips = document.querySelectorAll('#styleChips .chip');
 const bandChips = document.querySelectorAll('#bandChips .chip');
+const modeChips = document.querySelectorAll('#modeChips .chip');
 const colorSwatches = document.querySelectorAll('#colorSwatches [data-color]');
 const ratioChips = document.querySelectorAll('#ratioChips .chip');
 const exportModeChips = document.querySelectorAll('#exportModeChips .chip');
@@ -543,6 +550,7 @@ const settings = {
   style: 'circle',
   color: 'auto', // 'auto' or hex string
   band: 'wide', // 'bass' | 'wide' | 'full'
+  detectionMode: 'beat', // 'beat' | 'continuous'
 };
 
 tabs.forEach(tab=>{
@@ -567,6 +575,14 @@ bandChips.forEach(chip=>{
     bandChips.forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
     settings.band = chip.dataset.band;
+  });
+});
+
+modeChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    modeChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    settings.detectionMode = chip.dataset.mode;
   });
 });
 
@@ -598,6 +614,7 @@ exportModeChips.forEach(chip=>{
 let energyHistory = [];
 const HISTORY_LEN = 43; // ~ energy history window
 let cooldownFrames = 0;
+let continuousCounter = 0;
 
 let mediaRecorder, recordedChunks = [];
 let isRecording = false;
@@ -1302,13 +1319,28 @@ function draw(){
 
   if (analyser && isPlaying){
     const energy = getBassEnergy();
-    const result = detectBeat(energy);
-    if (result.beat){
-      spawnRipple(result.energy);
-      if (beatPunchToggle.checked){
-        const punchNorm = Math.min(1, result.energy/220);
-        const intensity = parseFloat(intensitySlider.value);
-        punchScale = 1 + Math.min(0.22, (0.06 + punchNorm*0.16) * intensity);
+    if (settings.detectionMode === 'continuous'){
+      continuousCounter++;
+      const continuousInterval = 18; // ~0.3s at 60fps between pulses
+      if (continuousCounter >= continuousInterval && energy > 6){
+        continuousCounter = 0;
+        const pulseStrength = Math.max(45, energy); // keep a visible minimum even in quiet passages
+        spawnRipple(pulseStrength);
+        if (beatPunchToggle.checked){
+          const punchNorm = Math.min(1, pulseStrength/220);
+          const intensity = parseFloat(intensitySlider.value);
+          punchScale = 1 + Math.min(0.22, (0.06 + punchNorm*0.16) * intensity);
+        }
+      }
+    } else {
+      const result = detectBeat(energy);
+      if (result.beat){
+        spawnRipple(result.energy);
+        if (beatPunchToggle.checked){
+          const punchNorm = Math.min(1, result.energy/220);
+          const intensity = parseFloat(intensitySlider.value);
+          punchScale = 1 + Math.min(0.22, (0.06 + punchNorm*0.16) * intensity);
+        }
       }
     }
   }

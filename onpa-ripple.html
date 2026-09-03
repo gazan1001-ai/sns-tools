@@ -311,6 +311,13 @@
         <button class="chip" data-mode="continuous">常時反応(BGM・アンビエント向け)</button>
       </div>
 
+      <div class="sensitivity">
+        <span>細かい</span>
+        <input type="range" id="rhythmGap" min="4" max="48" step="2" value="16">
+        <span>ゆったり</span>
+      </div>
+      <p class="section-label" style="margin-top:-10px;">リズム間隔(エフェクトの発生頻度)</p>
+
       <div class="row">
         <label class="btn btn-file" for="bgImageInput">背景画像を追加(任意)</label>
         <input type="file" id="bgImageInput" accept="image/*">
@@ -338,6 +345,7 @@
     <div class="panel" id="panel-fx">
       <p class="section-label">エフェクトのかたち</p>
       <div class="chip-row" id="styleChips">
+        <button class="chip" data-style="none">なし(波形のみ)</button>
         <button class="chip active" data-style="circle">ノーマル</button>
         <button class="chip" data-style="double">二重リング</button>
         <button class="chip" data-style="neon">ネオン</button>
@@ -427,6 +435,7 @@ const imageFilenameEl = document.getElementById('imageFilename');
 const statusEl = document.getElementById('status');
 const downloadLink = document.getElementById('downloadLink');
 const sensitivitySlider = document.getElementById('sensitivity');
+const rhythmGapSlider = document.getElementById('rhythmGap');
 const intensitySlider = document.getElementById('intensity');
 const densitySlider = document.getElementById('density');
 const saturationSlider = document.getElementById('saturation');
@@ -823,13 +832,15 @@ function detectBeat(energy){
   const onsetTrigger = delta > onsetSensitivity && energy > avg * 0.85 && energy > 22;
 
   if (levelTrigger || onsetTrigger){
-    cooldownFrames = 8; // debounce ~ a few frames
+    cooldownFrames = parseInt(rhythmGapSlider.value, 10); // debounce, tunable via "リズム間隔"
     return {beat:true, avg, energy};
   }
   return {beat:false, avg, energy};
 }
 
 function spawnRipple(strength){
+  if (settings.style === 'none') return; // 波形のみモード:視覚エフェクトを一切出さない
+
   const rect = canvas.getBoundingClientRect();
   const cx = rect.width/2;
   const cy = rect.height/2;
@@ -1321,7 +1332,7 @@ function draw(){
     const energy = getBassEnergy();
     if (settings.detectionMode === 'continuous'){
       continuousCounter++;
-      const continuousInterval = 18; // ~0.3s at 60fps between pulses
+      const continuousInterval = parseInt(rhythmGapSlider.value, 10); // tunable via "リズム間隔"
       if (continuousCounter >= continuousInterval && energy > 6){
         continuousCounter = 0;
         const pulseStrength = Math.max(45, energy); // keep a visible minimum even in quiet passages

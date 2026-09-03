@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>制作支援ツール</title>
+<style>
+  :root{
+    --ink: #071019;
+    --ink-2: #0d1b2a;
+    --foam: #eaf4f4;
+    --ripple: #5fd7d0;
+    --ripple-2: #ffb37b;
+    --muted: #6f8a94;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    min-height:100%;
+    background: radial-gradient(circle at 50% 0%, var(--ink-2), var(--ink) 70%);
+    color: var(--foam);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  .wrap{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 20px 60px;
+  }
+  header{
+    margin-bottom: 36px;
+  }
+  .eyebrow{
+    font-size: 12px;
+    color: var(--ripple);
+    letter-spacing: 0.04em;
+    margin: 0 0 10px;
+  }
+  h1{
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .sub{
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 0;
+    max-width: 46ch;
+  }
+  .grid{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 560px){
+    .grid{ grid-template-columns: 1fr 1fr; }
+  }
+  a.card{
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: linear-gradient(180deg, rgba(234,244,244,0.05), rgba(234,244,244,0.02));
+    border: 1px solid rgba(234,244,244,0.12);
+    border-radius: 18px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .15s, transform .15s;
+  }
+  a.card:active{
+    transform: scale(0.98);
+  }
+  a.card:hover{
+    border-color: rgba(95,215,208,0.4);
+  }
+  .card-glyph{
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-bottom: 16px;
+    font-size: 18px;
+  }
+  .card-title{
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .card-desc{
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+  .card-arrow{
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  footer{
+    margin-top: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">sns-tools</p>
+    <h1>制作支援ツール</h1>
+    <p class="sub">SNS動画素材づくりのための道具箱。使いたいツールをタップして開く。</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="countdown-material.html">
+      <div class="card-glyph" style="background: rgba(255,179,123,0.15); color:#ffb37b;">◐</div>
+      <p class="card-title">カウントダウン素材</p>
+      <p class="card-desc">数字が切り替わるカウントダウン/カウントアップの動画素材を作る。</p>
+      <span class="card-arrow">↗</span>
+    </a>
+
+    <a class="card" href="like-subscribe-material.html">
+      <div class="card-glyph" style="background: rgba(255,110,199,0.15); color:#ff6ec7;">♥</div>
+      <p class="card-title">いいね・登録アニメ</p>
+      <p class="card-desc">「いいね」「チャンネル登録」を促すアニメーション素材を作る。</p>
+      <span class="card-arrow">↗</span>
+    </a>
+
+    <a class="card" href="telop-pointer-bubble-material.html">
+      <div class="card-glyph" style="background: rgba(199,146,234,0.15); color:#c792ea;">💬</div>
+      <p class="card-title">テロップ・指差し・吹き出し</p>
+      <p class="card-desc">テロップ、指差し、吹き出しの動画素材をモード切替で作る。</p>
+      <span class="card-arrow">↗</span>
+    </a>
+
+    <a class="card" href="onpa-ripple.html">
+      <div class="card-glyph" style="background: rgba(95,215,208,0.15); color:#5fd7d0;">〜</div>
+      <p class="card-title">音波リップル</p>
+      <p class="card-desc">音楽に合わせて波紋・グリッチなどのエフェクトが広がる動画を作る。</p>
+      <span class="card-arrow">↗</span>
+    </a>
+  </div>
+
+  <footer>制作支援ツール一式</footer>
+</div>
+</body>
+</html>

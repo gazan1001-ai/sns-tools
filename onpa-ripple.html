@@ -309,6 +309,16 @@
       <div class="chip-row" id="modeChips">
         <button class="chip active" data-mode="beat">ビート検知(ドラムなどの曲向け)</button>
         <button class="chip" data-mode="continuous">常時反応(BGM・アンビエント向け)</button>
+        <button class="chip" data-mode="tempo">テンポ固定(BPM指定)</button>
+      </div>
+
+      <div class="sensitivity" id="bpmRow" style="display:none;">
+        <span>BPM</span>
+        <input type="range" id="bpmSlider" min="40" max="220" step="1" value="120">
+        <span id="bpmValue">120</span>
+      </div>
+      <div class="row" id="tapTempoRow" style="display:none;">
+        <button class="btn btn-file" id="tapTempoBtn">タップでBPM測定</button>
       </div>
 
       <div class="sensitivity">
@@ -436,6 +446,11 @@ const statusEl = document.getElementById('status');
 const downloadLink = document.getElementById('downloadLink');
 const sensitivitySlider = document.getElementById('sensitivity');
 const rhythmGapSlider = document.getElementById('rhythmGap');
+const bpmRow = document.getElementById('bpmRow');
+const bpmSlider = document.getElementById('bpmSlider');
+const bpmValueEl = document.getElementById('bpmValue');
+const tapTempoRow = document.getElementById('tapTempoRow');
+const tapTempoBtn = document.getElementById('tapTempoBtn');
 const intensitySlider = document.getElementById('intensity');
 const densitySlider = document.getElementById('density');
 const saturationSlider = document.getElementById('saturation');
@@ -592,7 +607,36 @@ modeChips.forEach(chip=>{
     modeChips.forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
     settings.detectionMode = chip.dataset.mode;
+    const isTempo = settings.detectionMode === 'tempo';
+    bpmRow.style.display = isTempo ? 'flex' : 'none';
+    tapTempoRow.style.display = isTempo ? 'flex' : 'none';
+    lastTempoBeatTime = null; // resync the grid when switching into tempo mode
   });
+});
+
+bpmSlider.addEventListener('input', ()=>{
+  bpmValueEl.textContent = bpmSlider.value;
+});
+
+let tapTimes = [];
+tapTempoBtn.addEventListener('click', ()=>{
+  const now = performance.now();
+  if (tapTimes.length > 0 && now - tapTimes[tapTimes.length-1] > 2000){
+    tapTimes = []; // stale sequence, start over
+  }
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();
+  if (tapTimes.length >= 2){
+    const intervals = [];
+    for (let i=1;i<tapTimes.length;i++) intervals.push(tapTimes[i]-tapTimes[i-1]);
+    const avgMs = intervals.reduce((a,b)=>a+b,0)/intervals.length;
+    const bpm = Math.round(60000/avgMs);
+    if (bpm >= 40 && bpm <= 220){
+      bpmSlider.value = bpm;
+      bpmValueEl.textContent = bpm;
+      lastTempoBeatTime = null; // resync grid to the new tempo
+    }
+  }
 });
 
 colorSwatches.forEach(sw=>{
@@ -624,6 +668,7 @@ let energyHistory = [];
 const HISTORY_LEN = 43; // ~ energy history window
 let cooldownFrames = 0;
 let continuousCounter = 0;
+let lastTempoBeatTime = null;
 
 let mediaRecorder, recordedChunks = [];
 let isRecording = false;
@@ -716,6 +761,7 @@ playBtn.addEventListener('click', async ()=>{
       statusEl.textContent = '再生に失敗しました。ファイルを選び直してみて。';
     });
     isPlaying = true;
+    lastTempoBeatTime = null;
     playBtn.textContent = '一時停止';
     if (!animId) draw();
   } else {
@@ -753,6 +799,7 @@ async function playDemo(){
   stopDemo();
   isDemoMode = true;
   isPlaying = true;
+  lastTempoBeatTime = null;
   demoBtn.textContent = 'デモ再生中…';
   demoBtn.disabled = true;
   statusEl.textContent = '';
@@ -1330,7 +1377,21 @@ function draw(){
 
   if (analyser && isPlaying){
     const energy = getBassEnergy();
-    if (settings.detectionMode === 'continuous'){
+    if (settings.detectionMode === 'tempo'){
+      const bpm = parseFloat(bpmSlider.value);
+      const beatInterval = 60 / bpm;
+      if (lastTempoBeatTime === null) lastTempoBeatTime = audioCtx.currentTime;
+      if (audioCtx.currentTime - lastTempoBeatTime >= beatInterval){
+        lastTempoBeatTime += beatInterval; // steady grid, avoids drifting
+        const pulseStrength = Math.max(60, energy); // fixed rhythm, slight size variation from actual volume
+        spawnRipple(pulseStrength);
+        if (beatPunchToggle.checked){
+          const punchNorm = Math.min(1, pulseStrength/220);
+          const intensity = parseFloat(intensitySlider.value);
+          punchScale = 1 + Math.min(0.22, (0.06 + punchNorm*0.16) * intensity);
+        }
+      }
+    } else if (settings.detectionMode === 'continuous'){
       continuousCounter++;
       const continuousInterval = parseInt(rhythmGapSlider.value, 10); // tunable via "リズム間隔"
       if (continuousCounter >= continuousInterval && energy > 6){

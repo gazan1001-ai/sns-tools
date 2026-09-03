@@ -782,18 +782,30 @@ function getBassEnergy(){
   return sum / (endBin - startBin);
 }
 
+let prevEnergy = 0;
+
 function detectBeat(energy){
   energyHistory.push(energy);
   if (energyHistory.length > HISTORY_LEN) energyHistory.shift();
   const avg = energyHistory.reduce((a,b)=>a+b,0) / energyHistory.length;
   const threshold = parseFloat(sensitivitySlider.value);
+  const delta = energy - prevEnergy;
+  prevEnergy = energy;
 
   if (cooldownFrames > 0){
     cooldownFrames--;
     return {beat:false, avg, energy};
   }
 
-  if (energy > avg * threshold && energy > 30){
+  // level trigger: clearly louder than the recent average (works for dynamic mixes)
+  const levelTrigger = energy > avg * threshold && energy > 30;
+  // onset trigger: a sharp rise from the previous frame, regardless of the
+  // absolute level — catches kicks/snares in loud, heavily-mastered tracks
+  // where the rolling average stays high and levelTrigger alone stops firing
+  const onsetSensitivity = Math.max(6, 26 - (threshold - 1.05) * 14);
+  const onsetTrigger = delta > onsetSensitivity && energy > avg * 0.85 && energy > 22;
+
+  if (levelTrigger || onsetTrigger){
     cooldownFrames = 8; // debounce ~ a few frames
     return {beat:true, avg, energy};
   }

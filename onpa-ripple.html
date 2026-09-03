@@ -298,6 +298,13 @@
         <span>反応しやすい</span>
       </div>
 
+      <p class="section-label">反応する帯域</p>
+      <div class="chip-row" id="bandChips">
+        <button class="chip" data-band="bass">低音(キック中心)</button>
+        <button class="chip active" data-band="wide">低音+中音(キック+スネア)</button>
+        <button class="chip" data-band="full">全体(オールジャンル)</button>
+      </div>
+
       <div class="row">
         <label class="btn btn-file" for="bgImageInput">背景画像を追加(任意)</label>
         <input type="file" id="bgImageInput" accept="image/*">
@@ -426,6 +433,7 @@ const beatPunchToggle = document.getElementById('beatPunchToggle');
 const tabs = document.querySelectorAll('.tab');
 const panels = { play: document.getElementById('panel-play'), fx: document.getElementById('panel-fx') };
 const styleChips = document.querySelectorAll('#styleChips .chip');
+const bandChips = document.querySelectorAll('#bandChips .chip');
 const colorSwatches = document.querySelectorAll('#colorSwatches [data-color]');
 const ratioChips = document.querySelectorAll('#ratioChips .chip');
 const exportModeChips = document.querySelectorAll('#exportModeChips .chip');
@@ -534,6 +542,7 @@ function resizeOffscreen(o){
 const settings = {
   style: 'circle',
   color: 'auto', // 'auto' or hex string
+  band: 'wide', // 'bass' | 'wide' | 'full'
 };
 
 tabs.forEach(tab=>{
@@ -550,6 +559,14 @@ styleChips.forEach(chip=>{
     styleChips.forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
     settings.style = chip.dataset.style;
+  });
+});
+
+bandChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    bandChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    settings.band = chip.dataset.band;
   });
 });
 
@@ -746,13 +763,23 @@ demoBtn.addEventListener('click', playDemo);
 
 function getBassEnergy(){
   analyser.getByteFrequencyData(dataArray);
-  // low-frequency bins roughly correspond to bass/kick
-  const bassBins = Math.max(4, Math.floor(bufferLength * 0.06));
+  let startBin = 0;
+  let endBin;
+  if (settings.band === 'bass'){
+    // low-frequency bins roughly correspond to bass/kick
+    endBin = Math.max(4, Math.floor(bufferLength * 0.06));
+  } else if (settings.band === 'wide'){
+    // extends further up to catch snare/mid percussion too
+    endBin = Math.max(8, Math.floor(bufferLength * 0.22));
+  } else {
+    // 'full' — most of the audible spectrum, catches hi-hats etc too
+    endBin = Math.max(16, Math.floor(bufferLength * 0.55));
+  }
   let sum = 0;
-  for (let i=0;i<bassBins;i++){
+  for (let i=startBin; i<endBin; i++){
     sum += dataArray[i];
   }
-  return sum / bassBins;
+  return sum / (endBin - startBin);
 }
 
 function detectBeat(energy){

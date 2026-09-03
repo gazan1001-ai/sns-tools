@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音波リップル</title>
+<style>
+  :root{
+    --ink: #071019;
+    --ink-2: #0d1b2a;
+    --foam: #eaf4f4;
+    --ripple: #5fd7d0;
+    --ripple-2: #ffb37b;
+    --muted: #6f8a94;
+    --danger: #ff6b6b;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    height:100%;
+    background: radial-gradient(circle at 50% 30%, var(--ink-2), var(--ink) 70%);
+    color: var(--foam);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    overflow-x:hidden;
+  }
+  .wrap{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+  h1{
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0 0 4px;
+  }
+  .sub{
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 24px;
+    line-height: 1.6;
+  }
+  .stage{
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #081420, #050b12);
+    border: 1px solid rgba(95, 215, 208, 0.15);
+  }
+  canvas{
+    display:block;
+    width:100%;
+    height:100%;
+  }
+  .drop-hint{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:10px;
+    color: var(--muted);
+    font-size: 13px;
+    pointer-events:none;
+    transition: opacity .3s;
+  }
+  .drop-hint.hide{opacity:0;}
+  .drop-hint svg{opacity:0.5;}
+
+  .controls{
+    margin-top: 18px;
+    display:flex;
+    flex-direction:column;
+    gap: 14px;
+  }
+  .row{
+    display:flex;
+    gap: 10px;
+    align-items:center;
+  }
+  input[type=file]{
+    display:none;
+  }
+  .btn{
+    flex:1;
+    appearance:none;
+    border:none;
+    border-radius: 12px;
+    padding: 13px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor:pointer;
+    transition: transform .12s, opacity .12s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .btn:active{transform: scale(0.97);}
+  .btn:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-file{
+    background: rgba(234,244,244,0.08);
+    color: var(--foam);
+    border: 1px solid rgba(234,244,244,0.15);
+  }
+  .btn-play{
+    background: var(--ripple);
+    color: #04201d;
+  }
+  .btn-rec{
+    background: transparent;
+    color: var(--foam);
+    border: 1px solid rgba(255,107,107,0.4);
+  }
+  .btn-rec.active{
+    background: var(--danger);
+    color: #1a0505;
+    border-color: var(--danger);
+  }
+  .filename{
+    font-size: 12px;
+    color: var(--muted);
+    text-align:center;
+    min-height: 16px;
+  }
+  .sensitivity{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  input[type=range]{
+    flex:1;
+    accent-color: var(--ripple);
+  }
+  .status{
+    font-size: 12px;
+    color: var(--ripple);
+    text-align:center;
+    min-height: 18px;
+  }
+  .download{
+    display:none;
+    background: rgba(255,179,123,0.12);
+    border: 1px solid rgba(255,179,123,0.4);
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-align:center;
+    color: var(--ripple-2);
+    text-decoration:none;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .tabs{
+    display:flex;
+    gap: 6px;
+    margin-top: 22px;
+    border-bottom: 1px solid rgba(234,244,244,0.1);
+  }
+  .tab{
+    appearance:none;
+    border:none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 4px 12px;
+    cursor:pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .tab.active{
+    color: var(--foam);
+    border-bottom-color: var(--ripple);
+  }
+  .panel{
+    display:none;
+    padding-top: 18px;
+  }
+  .panel.active{
+    display:block;
+  }
+  .section-label{
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  .chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .chip{
+    appearance:none;
+    border: 1px solid rgba(234,244,244,0.15);
+    background: rgba(234,244,244,0.05);
+    color: var(--foam);
+    font-size: 12px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    cursor:pointer;
+  }
+  .chip.active{
+    background: var(--ripple);
+    color: #04201d;
+    border-color: var(--ripple);
+    font-weight:600;
+  }
+  .swatch-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .swatch{
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor:pointer;
+    padding:0;
+  }
+  .swatch.active{
+    border-color: var(--foam);
+  }
+  .swatch-auto{
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid rgba(234,244,244,0.2);
+    background: conic-gradient(#5fd7d0, #ffb37b, #c792ea, #7ee787, #5fd7d0);
+    cursor:pointer;
+  }
+  .swatch-auto.active{
+    border-color: var(--foam);
+  }
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-size: 13px;
+    color: var(--foam);
+    padding: 4px 0;
+  }
+  .toggle-row .section-label{margin:0;}
+  input[type=checkbox]{
+    width: 40px;
+    height: 24px;
+    accent-color: var(--ripple);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>音波リップル</h1>
+  <p class="sub">音源を読み込んで再生すると、ドンに合わせて波紋が広がります。「エフェクト設定」タブでかたち・色も変えられます。</p>
+
+  <div class="stage">
+    <canvas id="canvas"></canvas>
+    <div class="drop-hint" id="hint">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+      <span>音源ファイル(または動画)を選んでください</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="tabs">
+      <button class="tab active" data-tab="play">再生</button>
+      <button class="tab" data-tab="fx">エフェクト設定</button>
+    </div>
+
+    <div class="panel active" id="panel-play">
+      <p class="section-label">画面の比率</p>
+      <div class="chip-row" id="ratioChips">
+        <button class="chip active" data-ratio="1/1">1:1(正方形)</button>
+        <button class="chip" data-ratio="4/5">4:5(フィード縦)</button>
+        <button class="chip" data-ratio="9/16">9:16(リール/ストーリーズ)</button>
+        <button class="chip" data-ratio="16/9">16:9(横型)</button>
+      </div>
+
+      <div class="row">
+        <label class="btn btn-file" for="fileInput">音源を選ぶ</label>
+        <input type="file" id="fileInput" accept="audio/*,video/*">
+        <button class="btn btn-play" id="playBtn" disabled>再生</button>
+      </div>
+      <div class="filename" id="filename"></div>
+
+      <div class="sensitivity">
+        <span>感度</span>
+        <input type="range" id="sensitivity" min="1.05" max="2.2" step="0.05" value="1.4">
+        <span>反応しやすい</span>
+      </div>
+
+      <div class="row">
+        <label class="btn btn-file" for="bgImageInput">背景画像を追加(任意)</label>
+        <input type="file" id="bgImageInput" accept="image/*">
+        <button class="btn btn-file" id="clearImageBtn" style="flex:0 0 auto; display:none;">画像を消す</button>
+      </div>
+      <div class="filename" id="imageFilename"></div>
+
+      <div class="row">
+        <button class="btn btn-file" id="demoBtn">デモ再生(音源なしでOK)</button>
+      </div>
+
+      <p class="section-label">書き出しモード</p>
+      <div class="chip-row" id="exportModeChips">
+        <button class="chip active" data-mode="normal">通常(背景+エフェクト)</button>
+        <button class="chip" data-mode="effect-only">エフェクトのみ(黒背景・合成用)</button>
+      </div>
+
+      <div class="row">
+        <button class="btn btn-rec" id="recBtn">● 録画開始</button>
+      </div>
+      <div class="status" id="status"></div>
+      <a class="download" id="downloadLink" download="onpa-ripple.webm">動画をダウンロード</a>
+    </div>
+
+    <div class="panel" id="panel-fx">
+      <p class="section-label">エフェクトのかたち</p>
+      <div class="chip-row" id="styleChips">
+        <button class="chip active" data-style="circle">ノーマル</button>
+        <button class="chip" data-style="double">二重リング</button>
+        <button class="chip" data-style="neon">ネオン</button>
+        <button class="chip" data-style="hex">六角形</button>
+        <button class="chip" data-style="particle">パーティクル</button>
+        <button class="chip" data-style="water">水滴</button>
+        <button class="chip" data-style="zigzag">ジグザグ</button>
+        <button class="chip" data-style="crack">ひび割れ</button>
+        <button class="chip" data-style="glitch">グリッチ</button>
+        <button class="chip" data-style="scanline">走査線</button>
+        <button class="chip" data-style="pixel">ドット崩れ</button>
+        <button class="chip" data-style="chroma">色収差</button>
+        <button class="chip" data-style="beam">光の柱</button>
+      </div>
+
+      <p class="section-label">色</p>
+      <div class="swatch-row" id="colorSwatches">
+        <button class="swatch-auto active" data-color="auto" title="オート(自動で変化)"></button>
+        <button class="swatch" data-color="#5fd7d0" style="background:#5fd7d0" title="ティール"></button>
+        <button class="swatch" data-color="#ffb37b" style="background:#ffb37b" title="オレンジ"></button>
+        <button class="swatch" data-color="#c792ea" style="background:#c792ea" title="パープル"></button>
+        <button class="swatch" data-color="#7ee787" style="background:#7ee787" title="グリーン"></button>
+        <button class="swatch" data-color="#ff6ec7" style="background:#ff6ec7" title="ピンク"></button>
+        <button class="swatch" data-color="#ffffff" style="background:#ffffff" title="ホワイト"></button>
+        <button class="swatch" data-color="#000000" style="background:#000000;box-shadow:inset 0 0 0 1px rgba(234,244,244,0.35)" title="ブラック"></button>
+      </div>
+
+      <div class="toggle-row">
+        <span class="section-label">エフェクトの濃さ</span>
+      </div>
+      <input type="range" id="density" min="0.3" max="1.8" step="0.1" value="1">
+
+      <div class="toggle-row">
+        <span class="section-label">彩度</span>
+      </div>
+      <input type="range" id="saturation" min="0" max="2" step="0.1" value="1">
+
+      <div class="toggle-row">
+        <span class="section-label">フラッシュ演出(強い音で画面が光る)</span>
+        <input type="checkbox" id="flashToggle" checked>
+      </div>
+
+      <div class="toggle-row">
+        <span class="section-label">光のにじみ(ブルーム)</span>
+        <input type="checkbox" id="bloomToggle" checked>
+      </div>
+      <input type="range" id="bloomStrength" min="0" max="0.8" step="0.05" value="0.35">
+
+      <div class="toggle-row">
+        <span class="section-label">波形ライン(音声波形をそのまま描画)</span>
+        <input type="checkbox" id="waveformToggle">
+      </div>
+
+      <div class="toggle-row">
+        <span class="section-label">キラキラを重ねる(星・砂の粒)</span>
+        <input type="checkbox" id="sparkleToggle">
+      </div>
+
+      <div class="toggle-row">
+        <span class="section-label">ビートパンチ(画像が音に合わせてズーム)</span>
+        <input type="checkbox" id="beatPunchToggle">
+      </div>
+
+      <div class="toggle-row">
+        <span class="section-label">派手さ(波紋の量・広がり)</span>
+      </div>
+      <input type="range" id="intensity" min="0.6" max="1.8" step="0.1" value="1">
+    </div>
+  </div>
+</div>
+
+<audio id="audioEl" playsinline></audio>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const playBtn = document.getElementById('playBtn');
+const demoBtn = document.getElementById('demoBtn');
+const recBtn = document.getElementById('recBtn');
+const audioEl = document.getElementById('audioEl');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const hint = document.getElementById('hint');
+const filenameEl = document.getElementById('filename');
+const bgImageInput = document.getElementById('bgImageInput');
+const clearImageBtn = document.getElementById('clearImageBtn');
+const imageFilenameEl = document.getElementById('imageFilename');
+const statusEl = document.getElementById('status');
+const downloadLink = document.getElementById('downloadLink');
+const sensitivitySlider = document.getElementById('sensitivity');
+const intensitySlider = document.getElementById('intensity');
+const densitySlider = document.getElementById('density');
+const saturationSlider = document.getElementById('saturation');
+const flashToggle = document.getElementById('flashToggle');
+const bloomToggle = document.getElementById('bloomToggle');
+const bloomStrengthSlider = document.getElementById('bloomStrength');
+const waveformToggle = document.getElementById('waveformToggle');
+const sparkleToggle = document.getElementById('sparkleToggle');
+const beatPunchToggle = document.getElementById('beatPunchToggle');
+const tabs = document.querySelectorAll('.tab');
+const panels = { play: document.getElementById('panel-play'), fx: document.getElementById('panel-fx') };
+const styleChips = document.querySelectorAll('#styleChips .chip');
+const colorSwatches = document.querySelectorAll('#colorSwatches [data-color]');
+const ratioChips = document.querySelectorAll('#ratioChips .chip');
+const exportModeChips = document.querySelectorAll('#exportModeChips .chip');
+const stage = document.querySelector('.stage');
+
+let audioCtx, analyser, sourceNode, destNode;
+let dataArray, bufferLength, waveformArray;
+let sparkles = [];
+let punchScale = 1;
+let ripples = [];
+let isPlaying = false;
+let animId = null;
+let sourceConnected = false;
+let isDemoMode = false;
+let demoTimeouts = [];
+let flashAlpha = 0;
+let bgImage = null;
+let exportMode = 'normal';
+
+bgImageInput.addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = ()=>{
+    bgImage = img;
+    imageFilenameEl.textContent = file.name;
+    clearImageBtn.style.display = 'block';
+  };
+  img.onerror = ()=>{
+    statusEl.textContent = '画像の読み込みに失敗しました。';
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+clearImageBtn.addEventListener('click', ()=>{
+  bgImage = null;
+  bgImageInput.value = '';
+  imageFilenameEl.textContent = '';
+  clearImageBtn.style.display = 'none';
+});
+
+function drawImageCover(targetCtx, img, w, h){
+  const imgRatio = img.width / img.height;
+  const canvasRatio = w / h;
+  let drawW, drawH, dx, dy;
+  if (imgRatio > canvasRatio){
+    drawH = h;
+    drawW = h * imgRatio;
+    dx = (w - drawW) / 2;
+    dy = 0;
+  } else {
+    drawW = w;
+    drawH = w / imgRatio;
+    dx = 0;
+    dy = (h - drawH) / 2;
+  }
+  targetCtx.drawImage(img, dx, dy, drawW, drawH);
+}
+
+function drawBackground(targetCtx, w, h){
+  targetCtx.save();
+  if (beatPunchToggle.checked && punchScale !== 1){
+    targetCtx.translate(w/2, h/2);
+    targetCtx.scale(punchScale, punchScale);
+    targetCtx.translate(-w/2, -h/2);
+  }
+
+  if (exportMode === 'effect-only'){
+    targetCtx.fillStyle = '#000000';
+    targetCtx.fillRect(0,0,w,h);
+    targetCtx.restore();
+    return;
+  }
+  if (bgImage){
+    drawImageCover(targetCtx, bgImage, w, h);
+    targetCtx.fillStyle = 'rgba(5,11,18,0.32)';
+    targetCtx.fillRect(0,0,w,h);
+  } else {
+    const grad = targetCtx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/1.4);
+    grad.addColorStop(0, 'rgba(13,27,42,0.5)');
+    grad.addColorStop(1, 'rgba(5,11,18,0.9)');
+    targetCtx.fillStyle = grad;
+    targetCtx.fillRect(0,0,w,h);
+  }
+  targetCtx.restore();
+}
+
+// offscreen buffers used for the chromatic-aberration (色収差) effect
+function makeOffscreen(){
+  const c = document.createElement('canvas');
+  return { c, cx: c.getContext('2d') };
+}
+const chromaRed = makeOffscreen();
+const chromaBlue = makeOffscreen();
+const bloomLayer = makeOffscreen();
+
+function resizeOffscreen(o){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  o.c.width = rect.width * dpr;
+  o.c.height = rect.height * dpr;
+  o.cx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+// user-selected effect settings
+const settings = {
+  style: 'circle',
+  color: 'auto', // 'auto' or hex string
+};
+
+tabs.forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    tabs.forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    Object.values(panels).forEach(p=>p.classList.remove('active'));
+    panels[tab.dataset.tab].classList.add('active');
+  });
+});
+
+styleChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    styleChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    settings.style = chip.dataset.style;
+  });
+});
+
+colorSwatches.forEach(sw=>{
+  sw.addEventListener('click', ()=>{
+    colorSwatches.forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    settings.color = sw.dataset.color;
+  });
+});
+
+ratioChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    ratioChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    stage.style.aspectRatio = chip.dataset.ratio;
+    resizeCanvas();
+  });
+});
+
+exportModeChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    exportModeChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    exportMode = chip.dataset.mode;
+  });
+});
+
+let energyHistory = [];
+const HISTORY_LEN = 43; // ~ energy history window
+let cooldownFrames = 0;
+
+let mediaRecorder, recordedChunks = [];
+let isRecording = false;
+
+// palette variation per "loudness band" (used when color = auto)
+const palettes = [
+  { stroke: '#5fd7d0', glow: 'rgba(95,215,208,0.5)' },
+  { stroke: '#ffb37b', glow: 'rgba(255,179,123,0.5)' },
+  { stroke: '#c792ea', glow: 'rgba(199,146,234,0.5)' },
+  { stroke: '#7ee787', glow: 'rgba(126,231,135,0.45)' },
+];
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16);
+  const g = parseInt(h.substring(2,4),16);
+  const b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function pickPalette(){
+  if (settings.color === 'auto'){
+    return palettes[Math.floor(Math.random()*palettes.length)];
+  }
+  if (settings.color === '#000000'){
+    // pure black would vanish against the dark background, so give it a soft
+    // light halo to keep the ripple edge visible (like ink in water)
+    return { stroke: '#000000', glow: 'rgba(234,244,244,0.45)' };
+  }
+  return { stroke: settings.color, glow: hexToRgba(settings.color, 0.55) };
+}
+
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  resizeOffscreen(chromaRed);
+  resizeOffscreen(chromaBlue);
+  resizeOffscreen(bloomLayer);
+}
+window.addEventListener('resize', resizeCanvas);
+
+function ensureAudioContext(){
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 1024;
+  bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+  waveformArray = new Uint8Array(analyser.fftSize);
+  destNode = audioCtx.createMediaStreamDestination();
+  analyser.connect(audioCtx.destination);
+  analyser.connect(destNode);
+}
+
+function connectFileSource(){
+  ensureAudioContext();
+  if (sourceConnected) return;
+  sourceNode = audioCtx.createMediaElementSource(audioEl);
+  sourceNode.connect(analyser);
+  sourceConnected = true;
+}
+
+fileInput.addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  isDemoMode = false;
+  const url = URL.createObjectURL(file);
+  statusEl.textContent = '';
+  audioEl.src = url;
+  filenameEl.textContent = file.name;
+  hint.classList.add('hide');
+  playBtn.disabled = false;
+  recBtn.disabled = false;
+  connectFileSource();
+});
+
+audioEl.addEventListener('error', ()=>{
+  statusEl.textContent = '読み込みに失敗しました。別のファイル形式で試してみて。';
+  playBtn.disabled = true;
+});
+
+playBtn.addEventListener('click', async ()=>{
+  isDemoMode = false;
+  if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+  if (!isPlaying){
+    audioEl.play().catch(()=>{
+      statusEl.textContent = '再生に失敗しました。ファイルを選び直してみて。';
+    });
+    isPlaying = true;
+    playBtn.textContent = '一時停止';
+    if (!animId) draw();
+  } else {
+    audioEl.pause();
+    isPlaying = false;
+    playBtn.textContent = '再生';
+  }
+});
+
+audioEl.addEventListener('ended', ()=>{
+  isPlaying = false;
+  playBtn.textContent = 'もう一度再生';
+  if (isRecording) stopRecording();
+});
+
+// ---- demo mode (no file needed) ----
+function synthKick(time, velocity){
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, time);
+  osc.frequency.exponentialRampToValueAtTime(38, time + 0.12);
+  gain.gain.setValueAtTime(0.001, time);
+  gain.gain.exponentialRampToValueAtTime(velocity, time + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+  osc.connect(gain);
+  gain.connect(analyser);
+  osc.start(time);
+  osc.stop(time + 0.25);
+}
+
+async function playDemo(){
+  ensureAudioContext();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  stopDemo();
+  isDemoMode = true;
+  isPlaying = true;
+  demoBtn.textContent = 'デモ再生中…';
+  demoBtn.disabled = true;
+  statusEl.textContent = '';
+  if (!animId) draw();
+
+  const bpm = 100;
+  const interval = 60 / bpm;
+  const bars = 16;
+  const startTime = audioCtx.currentTime + 0.1;
+
+  for (let i = 0; i < bars; i++){
+    const t = startTime + i * interval;
+    const accent = (i % 4 === 0);
+    const velocity = accent ? 0.9 : 0.55 + Math.random()*0.2;
+    synthKick(t, velocity);
+  }
+
+  const totalMs = bars * interval * 1000 + 400;
+  demoTimeouts.push(setTimeout(()=>{
+    isPlaying = false;
+    isDemoMode = false;
+    demoBtn.textContent = 'デモ再生(音源なしでOK)';
+    demoBtn.disabled = false;
+    if (isRecording) stopRecording();
+  }, totalMs));
+}
+
+function stopDemo(){
+  demoTimeouts.forEach(id => clearTimeout(id));
+  demoTimeouts = [];
+}
+
+demoBtn.addEventListener('click', playDemo);
+
+function getBassEnergy(){
+  analyser.getByteFrequencyData(dataArray);
+  // low-frequency bins roughly correspond to bass/kick
+  const bassBins = Math.max(4, Math.floor(bufferLength * 0.06));
+  let sum = 0;
+  for (let i=0;i<bassBins;i++){
+    sum += dataArray[i];
+  }
+  return sum / bassBins;
+}
+
+function detectBeat(energy){
+  energyHistory.push(energy);
+  if (energyHistory.length > HISTORY_LEN) energyHistory.shift();
+  const avg = energyHistory.reduce((a,b)=>a+b,0) / energyHistory.length;
+  const threshold = parseFloat(sensitivitySlider.value);
+
+  if (cooldownFrames > 0){
+    cooldownFrames--;
+    return {beat:false, avg, energy};
+  }
+
+  if (energy > avg * threshold && energy > 30){
+    cooldownFrames = 8; // debounce ~ a few frames
+    return {beat:true, avg, energy};
+  }
+  return {beat:false, avg, energy};
+}
+
+function spawnRipple(strength){
+  const rect = canvas.getBoundingClientRect();
+  const cx = rect.width/2;
+  const cy = rect.height/2;
+  const norm = Math.min(1, strength/220);
+  const intensity = parseFloat(intensitySlider.value);
+  const palette = pickPalette();
+  const style = settings.style;
+
+  const ripple = {
+    x: cx, y: cy,
+    radius: 4,
+    maxRadius: rect.width * (0.35 + norm*0.35) * intensity,
+    alpha: 0.9,
+    lineWidth: (2 + norm*4) * (style === 'neon' ? 1.5 : 1),
+    speed: (3 + norm*6) * intensity,
+    stroke: palette.stroke,
+    glow: palette.glow,
+    style: style,
+    rotation: Math.random() * Math.PI,
+    wobbleSeed: Math.random() * Math.PI * 2,
+    teeth: 7 + Math.floor(norm * 6),
+  };
+
+  if (style === 'particle'){
+    const n = 18 + Math.floor(norm*14);
+    ripple.particleAngles = [];
+    ripple.particleJitter = [];
+    for (let i=0;i<n;i++){
+      ripple.particleAngles.push((i/n) * Math.PI*2 + Math.random()*0.2);
+      ripple.particleJitter.push((Math.random()-0.5) * 18);
+    }
+  }
+
+  if (style === 'crack'){
+    const crackCount = 7 + Math.floor(norm*5);
+    ripple.crackPaths = generateCrackPaths(cx, cy, rect.width, rect.height, crackCount);
+    ripple.maxRadius = rect.width * 1.15 * intensity;
+    ripple.speed = ripple.maxRadius / 50;
+    ripple.lineWidth = 1.5 + norm*2.5;
+  }
+
+  if (style === 'glitch'){
+    ripple.maxRadius = rect.width * 0.5 * intensity;
+    ripple.speed = ripple.maxRadius / 14;
+  }
+
+  if (style === 'scanline'){
+    ripple.maxRadius = rect.width * 0.7 * intensity;
+    ripple.speed = ripple.maxRadius / 30;
+    ripple.lineWidth = 1;
+  }
+
+  if (style === 'pixel'){
+    ripple.maxRadius = rect.width * 0.5 * intensity;
+    ripple.speed = ripple.maxRadius / 20;
+  }
+
+  if (style === 'chroma'){
+    ripple.maxRadius = rect.width * 0.6 * intensity;
+    ripple.speed = ripple.maxRadius / 26;
+    ripple.strengthNorm = norm;
+  }
+
+  if (style === 'beam'){
+    const beamCount = 8 + Math.floor(norm*6);
+    ripple.beams = [];
+    for (let i=0;i<beamCount;i++){
+      ripple.beams.push({
+        angle: (i/beamCount) * Math.PI*2 + (Math.random()-0.5)*0.15,
+        width: 0.03 + Math.random()*0.05,
+      });
+    }
+    ripple.maxRadius = Math.hypot(rect.width, rect.height) * 0.55 * intensity;
+    ripple.speed = ripple.maxRadius / 32;
+  }
+
+  const screenStyles = ['crack','glitch','scanline','pixel','chroma','beam'];
+  ripples.push(ripple);
+
+  if (flashToggle.checked && (norm > 0.45 || screenStyles.includes(style))){
+    flashAlpha = Math.min(0.5, Math.max(norm, 0.5) * 0.55);
+  }
+
+  if (sparkleToggle.checked){
+    spawnSparkles(cx, cy, norm);
+  }
+}
+
+function spawnSparkles(cx, cy, norm){
+  const count = 6 + Math.floor(norm*10);
+  for (let i=0;i<count;i++){
+    const angle = Math.random() * Math.PI*2;
+    const speed = 0.6 + Math.random()*2.2;
+    sparkles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed - 0.4,
+      life: 1,
+      decay: 0.008 + Math.random()*0.014,
+      size: 1.2 + Math.random()*2.4,
+      twinkleSeed: Math.random()*Math.PI*2,
+      color: Math.random() < 0.7 ? '#ffffff' : (pickPalette().stroke),
+    });
+  }
+}
+
+function updateAndDrawSparkles(rect){
+  const density = parseFloat(densitySlider.value);
+  ctx.save();
+  sparkles.forEach(s=>{
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy += 0.015; // gentle gravity drift
+    s.life -= s.decay;
+    const twinkle = 0.5 + 0.5*Math.sin(s.twinkleSeed + s.life*20);
+    const alpha = Math.max(0, s.life) * twinkle * density;
+    if (alpha <= 0) return;
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.fillStyle = s.color;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, Math.max(0.4, s.size*s.life), 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.restore();
+  ctx.shadowBlur = 0;
+  sparkles = sparkles.filter(s => s.life > 0 && s.x > -20 && s.x < rect.width+20 && s.y > -20 && s.y < rect.height+20);
+}
+
+function drawWaveform(rect){
+  if (!analyser || !waveformArray) return;
+  analyser.getByteTimeDomainData(waveformArray);
+  const density = parseFloat(densitySlider.value);
+  const midY = rect.height/2;
+  const sliceW = rect.width / waveformArray.length;
+
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, 0.85 * density);
+  ctx.strokeStyle = '#eaf4f4';
+  ctx.shadowColor = 'rgba(234,244,244,0.5)';
+  ctx.shadowBlur = 6;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i=0;i<waveformArray.length;i++){
+    const v = waveformArray[i] / 128.0; // 0..2, 1 = silence
+    const y = midY + (v-1) * (rect.height*0.32);
+    const x = i * sliceW;
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function strokePolygon(x, y, radius, sides, rotation){
+  ctx.beginPath();
+  for (let i=0;i<=sides;i++){
+    const a = rotation + (i/sides)*Math.PI*2;
+    const px = x + Math.cos(a)*radius;
+    const py = y + Math.sin(a)*radius;
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function strokeWobblyCircle(x, y, radius, seed){
+  const points = 64;
+  const wobbleAmp = radius * 0.025;
+  ctx.beginPath();
+  for (let i=0;i<=points;i++){
+    const a = (i/points) * Math.PI*2;
+    const wob = Math.sin(a*6 + seed) * wobbleAmp;
+    const rad = radius + wob;
+    const px = x + Math.cos(a)*rad;
+    const py = y + Math.sin(a)*rad;
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawWaterRipple(r, density){
+  const rings = 4;
+  const spacing = r.maxRadius * 0.1;
+  const baseAlpha = r.alpha;
+  for (let i=0;i<rings;i++){
+    const ringRadius = r.radius - i*spacing;
+    if (ringRadius <= 2) continue;
+    const ringAlpha = baseAlpha * (1 - i*0.24) * density;
+    if (ringAlpha <= 0.02) continue;
+    ctx.globalAlpha = Math.min(1, ringAlpha);
+    ctx.lineWidth = Math.max(0.8, r.lineWidth * density * (1 - i*0.18));
+    strokeWobblyCircle(r.x, r.y, ringRadius, r.wobbleSeed + i*1.7);
+  }
+}
+
+function strokeZigzagCircle(x, y, radius, seed, teeth){
+  const points = teeth * 2;
+  const jitter = radius * 0.34;
+  ctx.beginPath();
+  for (let i=0;i<=points;i++){
+    const a = (i/points) * Math.PI*2 + seed;
+    const isOuter = i % 2 === 0;
+    const rad = isOuter ? radius + jitter : Math.max(2, radius - jitter*0.5);
+    const px = x + Math.cos(a)*rad;
+    const py = y + Math.sin(a)*rad;
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function generateCrackPaths(cx, cy, w, h, count){
+  const paths = [];
+  const maxLen = Math.hypot(w, h) * 0.72;
+  for (let i=0;i<count;i++){
+    const baseAngle = (i/count) * Math.PI*2 + (Math.random()-0.5)*0.5;
+    const segments = 5 + Math.floor(Math.random()*3);
+    const segLen = maxLen / segments;
+    const points = [{x:cx, y:cy}];
+    let curX = cx, curY = cy, curAngle = baseAngle;
+    for (let s=0; s<segments; s++){
+      curAngle += (Math.random()-0.5) * 0.55;
+      curX += Math.cos(curAngle) * segLen * (0.7 + Math.random()*0.6);
+      curY += Math.sin(curAngle) * segLen * (0.7 + Math.random()*0.6);
+      points.push({x:curX, y:curY});
+    }
+    paths.push(points);
+
+    if (Math.random() < 0.65 && points.length > 3){
+      const branchIdx = 1 + Math.floor(Math.random() * (points.length-2));
+      const start = points[branchIdx];
+      const branchAngle = curAngle + (Math.random()<0.5 ? 1 : -1) * (0.6 + Math.random()*0.6);
+      const branchLen = segLen * (1.4 + Math.random()*1.2);
+      paths.push([start, {
+        x: start.x + Math.cos(branchAngle)*branchLen,
+        y: start.y + Math.sin(branchAngle)*branchLen
+      }]);
+    }
+  }
+  return paths;
+}
+
+function strokeCrackPath(points, revealFraction){
+  const total = points.length;
+  const revealCount = Math.max(1, Math.floor(revealFraction * (total-1)) + 1);
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i=1; i<Math.min(revealCount+1, total); i++){
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.stroke();
+}
+
+function drawCrackShatter(r){
+  const progress = r.radius / r.maxRadius;
+  const growth = Math.min(1, progress / 0.22);
+  const density = parseFloat(densitySlider.value);
+  let alpha;
+  if (progress < 0.55) alpha = 1;
+  else alpha = Math.max(0, 1 - (progress-0.55)/0.45);
+
+  ctx.strokeStyle = r.stroke;
+  ctx.shadowColor = r.glow;
+  ctx.shadowBlur = 24 * density;
+  ctx.globalAlpha = Math.min(1, alpha * density);
+  ctx.lineWidth = r.lineWidth * 0.8 * density;
+  r.crackPaths.forEach(path => strokeCrackPath(path, growth));
+}
+
+// ---- retro screen effects (not centered ripples — full-canvas post effects) ----
+
+function drawGlitchEffect(r){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const progress = r.radius / r.maxRadius;
+  const alpha = Math.max(0, 1 - progress);
+  const density = parseFloat(densitySlider.value);
+  if (alpha <= 0) return;
+
+  const bandCount = 4 + Math.floor(Math.random()*4);
+  for (let i=0;i<bandCount;i++){
+    const bandH = 6 + Math.random()*22;
+    const y = Math.random() * Math.max(1, rect.height - bandH);
+    const xOff = (Math.random()-0.5) * 40 * alpha * density;
+    ctx.drawImage(canvas, 0, y*dpr, canvas.width, bandH*dpr, xOff, y, rect.width, bandH);
+  }
+
+  // fine 1px row-level jitter for a more pixel-precise datamosh feel
+  const microRows = 8 + Math.floor(Math.random()*10);
+  for (let i=0;i<microRows;i++){
+    const y = Math.floor(Math.random() * rect.height);
+    const xOff = (Math.random()-0.5) * 16 * alpha * density;
+    ctx.drawImage(canvas, 0, y*dpr, canvas.width, Math.max(1, dpr), xOff, y, rect.width, 1);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = 0.55 * alpha * density;
+  for (let i=0;i<12;i++){
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,60,90,0.55)' : 'rgba(80,220,255,0.55)';
+    const bw = 8 + Math.random()*36;
+    const bh = 2 + Math.random()*5;
+    ctx.fillRect(Math.random()*rect.width, Math.random()*rect.height, bw, bh);
+  }
+  ctx.restore();
+}
+
+function drawScanlineEffect(r){
+  const rect = canvas.getBoundingClientRect();
+  const progress = r.radius / r.maxRadius;
+  const alpha = Math.max(0, 1 - progress);
+  const density = parseFloat(densitySlider.value);
+  if (alpha <= 0) return;
+
+  ctx.save();
+  ctx.strokeStyle = r.stroke;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = Math.min(1, alpha * density * 0.5);
+  const spacing = 4;
+  const wobble = 7 * (1 - progress);
+  for (let y=0; y<rect.height; y+=spacing){
+    const xOff = Math.sin(y*0.05 + progress*22 + r.wobbleSeed) * wobble;
+    ctx.beginPath();
+    ctx.moveTo(xOff, y);
+    ctx.lineTo(rect.width + xOff, y);
+    ctx.stroke();
+  }
+
+  const sweepY = progress * rect.height;
+  const grad = ctx.createLinearGradient(0, sweepY-16, 0, sweepY+16);
+  grad.addColorStop(0, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.5, `rgba(255,255,255,${0.55*alpha*density})`);
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, sweepY-16, rect.width, 32);
+  ctx.restore();
+}
+
+function drawPixelCrumbleEffect(r){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const progress = r.radius / r.maxRadius;
+  const alpha = Math.max(0, 1 - progress);
+  const density = parseFloat(densitySlider.value);
+  if (alpha <= 0) return;
+
+  const blockSize = 16;
+  const cols = Math.ceil(rect.width / blockSize);
+  const rows = Math.ceil(rect.height / blockSize);
+  const shiftChance = 0.16 * alpha * density;
+
+  for (let cy=0; cy<rows; cy++){
+    for (let cx2=0; cx2<cols; cx2++){
+      if (Math.random() > shiftChance) continue;
+      const sx = cx2*blockSize, sy = cy*blockSize;
+      const dx = sx + (Math.random()-0.5) * blockSize * 1.6;
+      ctx.drawImage(canvas, sx*dpr, sy*dpr, blockSize*dpr, blockSize*dpr, dx, sy, blockSize, blockSize);
+    }
+  }
+}
+
+function drawChromaEffect(r){
+  const rect = canvas.getBoundingClientRect();
+  const progress = r.radius / r.maxRadius;
+  const alpha = Math.max(0, 1 - progress);
+  const density = parseFloat(densitySlider.value);
+  if (alpha <= 0) return;
+
+  const maxOffset = 8 + (r.strengthNorm || 0.5) * 16;
+  const offset = maxOffset * (1 - progress);
+
+  drawBackground(chromaRed.cx, rect.width, rect.height);
+  chromaRed.cx.globalCompositeOperation = 'multiply';
+  chromaRed.cx.fillStyle = '#ff0033';
+  chromaRed.cx.fillRect(0,0,rect.width, rect.height);
+  chromaRed.cx.globalCompositeOperation = 'source-over';
+
+  drawBackground(chromaBlue.cx, rect.width, rect.height);
+  chromaBlue.cx.globalCompositeOperation = 'multiply';
+  chromaBlue.cx.fillStyle = '#33aaff';
+  chromaBlue.cx.fillRect(0,0,rect.width, rect.height);
+  chromaBlue.cx.globalCompositeOperation = 'source-over';
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = Math.min(1, alpha * density);
+  ctx.drawImage(chromaRed.c, -offset, 0, rect.width, rect.height);
+  ctx.drawImage(chromaBlue.c, offset, 0, rect.width, rect.height);
+  ctx.restore();
+}
+
+function drawBeamEffect(r){
+  const rect = canvas.getBoundingClientRect();
+  const progress = r.radius / r.maxRadius;
+  const density = parseFloat(densitySlider.value);
+  let alpha;
+  if (progress < 0.15) alpha = progress/0.15;
+  else alpha = Math.max(0, 1 - (progress-0.15)/0.85);
+  if (alpha <= 0) return;
+
+  const len = r.radius;
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = r.glow;
+  ctx.shadowBlur = 20 * density;
+
+  r.beams.forEach(beam=>{
+    const spread = beam.width;
+    const a1 = beam.angle - spread;
+    const a2 = beam.angle + spread;
+
+    ctx.beginPath();
+    ctx.moveTo(r.x, r.y);
+    ctx.lineTo(r.x + Math.cos(a1)*len, r.y + Math.sin(a1)*len);
+    ctx.lineTo(r.x + Math.cos(a2)*len, r.y + Math.sin(a2)*len);
+    ctx.closePath();
+    ctx.fillStyle = r.stroke;
+    ctx.globalAlpha = Math.min(1, alpha * density * 0.5);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawRippleShape(r){
+  const density = parseFloat(densitySlider.value);
+  const lw = r.lineWidth * density;
+  ctx.strokeStyle = r.stroke;
+  ctx.fillStyle = r.stroke;
+  ctx.lineWidth = lw;
+  ctx.shadowColor = r.glow;
+  ctx.shadowBlur = (r.style === 'neon' ? 30 : (r.style === 'zigzag' ? 26 : 18)) * density;
+
+  switch (r.style){
+    case 'double':
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.lineWidth = lw * 0.55;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, Math.max(0, r.radius*0.72), 0, Math.PI*2);
+      ctx.stroke();
+      break;
+    case 'hex':
+      r.rotation += 0.015;
+      strokePolygon(r.x, r.y, r.radius, 6, r.rotation);
+      break;
+    case 'particle':
+      r.particleAngles.forEach((a, i)=>{
+        const rad = r.radius + r.particleJitter[i];
+        const px = r.x + Math.cos(a)*rad;
+        const py = r.y + Math.sin(a)*rad;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(1.2, lw*0.55), 0, Math.PI*2);
+        ctx.fill();
+      });
+      break;
+    case 'neon':
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
+      ctx.stroke();
+      break;
+    case 'water':
+      drawWaterRipple(r, density);
+      break;
+    case 'zigzag':
+      ctx.lineWidth = lw * 1.25;
+      strokeZigzagCircle(r.x, r.y, r.radius, r.wobbleSeed, r.teeth);
+      break;
+    default:
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
+      ctx.stroke();
+  }
+}
+
+function draw(){
+  const rect = canvas.getBoundingClientRect();
+  ctx.clearRect(0,0,rect.width, rect.height);
+  ctx.filter = `saturate(${saturationSlider.value})`;
+
+  drawBackground(ctx, rect.width, rect.height);
+
+  if (beatPunchToggle.checked){
+    punchScale += (1 - punchScale) * 0.18;
+  }
+
+  if (analyser && isPlaying){
+    const energy = getBassEnergy();
+    const result = detectBeat(energy);
+    if (result.beat){
+      spawnRipple(result.energy);
+      if (beatPunchToggle.checked){
+        const punchNorm = Math.min(1, result.energy/220);
+        const intensity = parseFloat(intensitySlider.value);
+        punchScale = 1 + Math.min(0.22, (0.06 + punchNorm*0.16) * intensity);
+      }
+    }
+  }
+
+  ripples.forEach(r=>{
+    r.radius += r.speed;
+    if (r.style === 'crack'){
+      drawCrackShatter(r);
+    } else if (r.style === 'glitch'){
+      drawGlitchEffect(r);
+    } else if (r.style === 'scanline'){
+      drawScanlineEffect(r);
+    } else if (r.style === 'pixel'){
+      drawPixelCrumbleEffect(r);
+    } else if (r.style === 'chroma'){
+      drawChromaEffect(r);
+    } else if (r.style === 'beam'){
+      drawBeamEffect(r);
+    } else {
+      r.alpha = Math.max(0, 1 - (r.radius / r.maxRadius));
+      const density = parseFloat(densitySlider.value);
+      ctx.globalAlpha = Math.min(1, r.alpha * density);
+      drawRippleShape(r);
+    }
+  });
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  ripples = ripples.filter(r => r.radius < r.maxRadius);
+
+  if (waveformToggle.checked && isPlaying){
+    drawWaveform(rect);
+  }
+
+  if (sparkles.length > 0){
+    updateAndDrawSparkles(rect);
+  }
+
+  if (bloomToggle.checked){
+    const strength = parseFloat(bloomStrengthSlider.value);
+    if (strength > 0.01){
+      bloomLayer.cx.clearRect(0,0,rect.width, rect.height);
+      bloomLayer.cx.drawImage(canvas, 0,0, canvas.width, canvas.height, 0,0, rect.width, rect.height);
+      ctx.save();
+      ctx.filter = 'blur(6px)';
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = strength;
+      ctx.drawImage(bloomLayer.c, 0, 0, rect.width, rect.height);
+      ctx.restore();
+    }
+  }
+
+  if (flashAlpha > 0.001){
+    ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
+    ctx.fillRect(0,0,rect.width, rect.height);
+    flashAlpha *= 0.82;
+  } else {
+    flashAlpha = 0;
+  }
+
+  // center dot
+  ctx.beginPath();
+  ctx.arc(rect.width/2, rect.height/2, 3, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(234,244,244,0.5)';
+  ctx.fill();
+
+  animId = requestAnimationFrame(draw);
+}
+
+// ---- recording ----
+recBtn.addEventListener('click', async ()=>{
+  if (!isRecording){
+    startRecording();
+  } else {
+    stopRecording();
+  }
+});
+
+function startRecording(){
+  ensureAudioContext();
+  const videoStream = canvas.captureStream(30);
+  const audioStream = destNode.stream;
+  const combined = new MediaStream([
+    ...videoStream.getVideoTracks(),
+    ...audioStream.getAudioTracks()
+  ]);
+
+  let mimeType = 'video/webm;codecs=vp9,opus';
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8,opus';
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(combined, { mimeType });
+  mediaRecorder.ondataavailable = (e)=>{
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
+  mediaRecorder.onstop = ()=>{
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.download = exportMode === 'effect-only' ? 'onpa-ripple-effect-only.webm' : 'onpa-ripple.webm';
+    downloadLink.style.display = 'block';
+    statusEl.textContent = '録画完了。下のリンクからダウンロードできます。';
+  };
+  mediaRecorder.start();
+  isRecording = true;
+  recBtn.textContent = '■ 録画停止';
+  recBtn.classList.add('active');
+  statusEl.textContent = '録画中…';
+  downloadLink.style.display = 'none';
+
+  if (!isPlaying){
+    if (audioEl.src){
+      audioEl.currentTime = 0;
+      playBtn.click();
+    } else {
+      playDemo();
+    }
+  }
+}
+
+function stopRecording(){
+  if (mediaRecorder && mediaRecorder.state !== 'inactive'){
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  recBtn.textContent = '● 録画開始';
+  recBtn.classList.remove('active');
+}
+
+resizeCanvas();
+draw();
+</script>
+</body>
+</html>

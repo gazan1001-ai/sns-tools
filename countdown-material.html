@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カウントダウン素材ツール</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #000000;
+    --accent: #F4F1EA;
+    --ring-track: #FFFFFF14;
+    --text: #F4F1EA;
+    --text-dim: #F4F1EA80;
+    --panel: #14151ACC;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Zen Kaku Gothic New', system-ui, sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    overflow:hidden;
+    transition: background 0.4s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.bg-black{ --bg:#000000; }
+  body.bg-white{ --bg:#FFFFFF; --text:#0B0C10; --text-dim:#0B0C1080; --ring-track:#0B0C1014; --panel:#FFFFFFCC; }
+  body.bg-green{ --bg:#00FF00; --text:#050505; --text-dim:#05050580; --ring-track:#00000022; --panel:#FFFFFFCC; }
+
+  .stage{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:min(78vmin, 520px);
+    height:min(78vmin, 520px);
+  }
+
+  svg.ring{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+  .ring-track.hidden, .ring-progress.hidden{ display:none; }
+  .ring-track{ fill:none; stroke:var(--ring-track); }
+  .ring-progress{
+    fill:none;
+    stroke:var(--accent);
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    transition: stroke-dashoffset 0.2s linear, stroke 0.3s ease;
+  }
+
+  .readout{
+    position:relative;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size:min(15vmin, 108px);
+    letter-spacing:-0.02em;
+    line-height:1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .readout.pulse{ animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse{
+    0%,100%{ transform:scale(1); opacity:1; }
+    50%{ transform:scale(1.06); opacity:0.75; }
+  }
+
+  .done .readout{ color:var(--accent); }
+
+  .label{
+    position:absolute;
+    bottom:14%;
+    font-size:13px;
+    letter-spacing:0.08em;
+    color:var(--text-dim);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+  }
+
+  .panel{
+    position:fixed;
+    bottom:28px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--panel);
+    backdrop-filter: blur(14px);
+    border-radius:20px;
+    padding:16px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    width:min(92vw, 480px);
+    max-height:80vh;
+    overflow-y:auto;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index:10;
+  }
+  body.record-mode .panel{ opacity:0; pointer-events:none; transform:translateX(-50%) translateY(20px); }
+
+  .row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .row-label{ font-size:12px; color:var(--text-dim); width:52px; flex:none; }
+  .divider{ height:1px; background:#FFFFFF1A; margin:2px 0; }
+
+  button{
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-size:13px;
+    border:none;
+    border-radius:10px;
+    padding:9px 14px;
+    background:#FFFFFF14;
+    color:var(--text);
+    cursor:pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+    white-space:nowrap;
+  }
+  button:hover{ background:#FFFFFF26; }
+  button:active{ transform:scale(0.96); }
+  button.primary{ background:var(--accent); color:#0B0C10; font-weight:700; }
+  button.primary:hover{ filter:brightness(1.08); background:var(--accent); }
+  button.opt-active{ background:var(--accent); color:#0B0C10; font-weight:700; }
+  button.opt-active:hover{ background:var(--accent); filter:brightness(1.08); }
+  button.danger{ background:#FF453A22; color:#FF7B70; }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .swatch{
+    width:26px; height:26px; border-radius:50%;
+    border:2px solid transparent;
+    cursor:pointer;
+    flex:none;
+  }
+  .swatch.active{ border-color:var(--text); }
+
+  input[type="number"], input[type="text"]{
+    background:#FFFFFF10;
+    border:1px solid #FFFFFF22;
+    border-radius:8px;
+    color:var(--text);
+    font-family:'Space Mono', monospace;
+    font-size:14px;
+    padding:8px 6px;
+    text-align:center;
+  }
+  input[type="number"]{ width:56px; }
+  input[type="text"]{ width:64px; }
+  input[type="number"]::-webkit-inner-spin-button{ opacity:0.6; }
+
+  input[type="file"]{
+    color:var(--text-dim);
+    font-size:12px;
+    max-width:180px;
+  }
+
+  .hint{
+    position:fixed;
+    top:20px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:12px;
+    color:var(--text-dim);
+    opacity:0;
+    transition:opacity 0.3s ease;
+    pointer-events:none;
+  }
+  body.record-mode .hint{ opacity:0.6; }
+
+  .rec-status{
+    font-size:12px;
+    color:var(--text-dim);
+    font-family:'Space Mono', monospace;
+  }
+
+  @media (max-width:480px){
+    .panel{ padding:14px 16px; gap:10px; }
+    button{ font-size:12px; padding:8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="hint">Esc / タップで操作パネルを表示</div>
+
+  <div class="stage" id="stage">
+    <svg class="ring" viewBox="0 0 100 100">
+      <circle class="ring-track" id="circleTrack" cx="50" cy="50" r="46"></circle>
+      <circle class="ring-progress" id="circleProgress" cx="50" cy="50" r="46"></circle>
+      <rect class="ring-track" id="rectTrack" rx="8"></rect>
+      <rect class="ring-progress" id="rectProgress" rx="8"></rect>
+    </svg>
+    <div class="readout" id="readout">00:30</div>
+    <div class="label" id="statusLabel">READY</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="row">
+      <span class="row-label">モード</span>
+      <button data-mode="down" class="opt-active">カウントダウン</button>
+      <button data-mode="up">カウントアップ</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">時間</span>
+      <input type="number" id="mins" min="0" max="99" value="0"> <span style="font-size:12px;color:var(--text-dim);">分</span>
+      <input type="number" id="secs" min="0" max="59" value="30"> <span style="font-size:12px;color:var(--text-dim);">秒</span>
+      <button id="setBtn">セット</button>
+    </div>
+
+    <div class="row">
+      <button data-preset="10">10秒</button>
+      <button data-preset="30">30秒</button>
+      <button data-preset="60">1分</button>
+      <button data-preset="180">3分</button>
+      <button data-preset="300">5分</button>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="startBtn">スタート</button>
+      <button id="pauseBtn">一時停止</button>
+      <button id="resetBtn">リセット</button>
+      <button id="soundBtn">🔊 音: ON</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">配色</span>
+      <div class="swatch active" style="background:#F4F1EA" data-accent="#F4F1EA"></div>
+      <div class="swatch" style="background:#D9D9D9" data-accent="#D9D9D9"></div>
+      <div class="swatch" style="background:#9A9A9A" data-accent="#9A9A9A"></div>
+      <div class="swatch" style="background:#5C5C5C" data-accent="#5C5C5C"></div>
+      <div class="swatch" style="background:#FF6B35" data-accent="#FF6B35"></div>
+    </div>
+
+    <div class="row">
+      <span class="row-label">背景</span>
+      <button data-bg="">ダーク</button>
+      <button data-bg="bg-black">黒</button>
+      <button data-bg="bg-white">白</button>
+      <button data-bg="bg-green">グリーンバック</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">形</span>
+      <button data-shape="circle" class="opt-active">丸</button>
+      <button data-shape="square">正方形</button>
+      <button data-shape="wide">横長</button>
+      <button data-shape="tall">縦長</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">太さ</span>
+      <button data-width="1.5">細い</button>
+      <button data-width="3" class="opt-active">標準</button>
+      <button data-width="6">太い</button>
+      <button data-width="10">極太</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">線種</span>
+      <button data-style="solid" class="opt-active">実線</button>
+      <button data-style="dashed">破線</button>
+      <button data-style="dotted">点線</button>
+    </div>
+
+    <div class="row">
+      <button id="recordBtn">🎬 収録モード(UIを隠す)</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row">
+      <span class="row-label">自動録画</span>
+      <input type="file" id="audioFile" accept="audio/*,video/*">
+    </div>
+    <div class="row">
+      <span class="row-label">開始〜終了</span>
+      <input type="text" id="recStart" placeholder="0:00">
+      〜
+      <input type="text" id="recEnd" placeholder="0:30">
+      <button id="recStartBtn">🔴 自動録画スタート</button>
+    </div>
+    <div class="row" id="recStatusRow" style="display:none;">
+      <span class="rec-status" id="recStatusText">録画準備中...</span>
+      <button id="recCancelBtn" class="danger">中止</button>
+    </div>
+  </div>
+
+  <canvas id="recCanvas" style="display:none;"></canvas>
+
+<script>
+  const readout = document.getElementById('readout');
+  const stage = document.getElementById('stage');
+  const statusLabel = document.getElementById('statusLabel');
+
+  const BG_PRESETS = {
+    '':         { bg:'#000000', text:'#F4F1EA', track:'rgba(255,255,255,0.08)' },
+    'bg-black': { bg:'#000000', text:'#F4F1EA', track:'rgba(255,255,255,0.08)' },
+    'bg-white': { bg:'#FFFFFF', text:'#0B0C10', track:'rgba(11,12,16,0.08)' },
+    'bg-green': { bg:'#00FF00', text:'#050505', track:'rgba(0,0,0,0.13)' }
+  };
+
+  const circleTrack = document.getElementById('circleTrack');
+  const circleProgress = document.getElementById('circleProgress');
+  const rectTrack = document.getElementById('rectTrack');
+  const rectProgress = document.getElementById('rectProgress');
+  const CIRCLE_PERIM = 2 * Math.PI * 46;
+
+  let shapeType = 'circle';      // circle | square | wide | tall
+  let strokeWidth = 3;
+  let lineStyle = 'solid';       // solid | dashed | dotted
+  let mode = 'down';             // down | up
+  let currentBgKey = '';
+  let currentAccent = '#F4F1EA';
+
+  function rectDims(aspect){
+    if (aspect === 'wide') return { w:92, h:52, rx:10 };
+    if (aspect === 'tall') return { w:52, h:92, rx:10 };
+    return { w:92, h:92, rx:8 }; // square
+  }
+  function rectPerimeter(w,h,rx){
+    return 2*(w+h) - 8*rx + 2*Math.PI*rx;
+  }
+
+  function dasharrayFor(style, perimeter, width){
+    if (style === 'dashed'){
+      const unit = Math.max(perimeter / 28, width * 1.6);
+      return [unit, unit * 0.6];
+    }
+    if (style === 'dotted'){
+      const gap = Math.max(width * 2.2, perimeter / 60);
+      return [width * 0.3, gap];
+    }
+    return [perimeter, perimeter];
+  }
+
+  function getActiveGeom(){
+    if (shapeType === 'circle'){
+      return { track:circleTrack, progress:circleProgress, perimeter:CIRCLE_PERIM };
+    }
+    const d = rectDims(shapeType);
+    return { track:rectTrack, progress:rectProgress, perimeter: rectPerimeter(d.w,d.h,d.rx), dims:d };
+  }
+
+  function updateGeometry(){
+    const isCircle = shapeType === 'circle';
+    circleTrack.classList.toggle('hidden', !isCircle);
+    circleProgress.classList.toggle('hidden', !isCircle);
+    rectTrack.classList.toggle('hidden', isCircle);
+    rectProgress.classList.toggle('hidden', isCircle);
+
+    if (!isCircle){
+      const d = rectDims(shapeType);
+      const x = (100 - d.w) / 2, y = (100 - d.h) / 2;
+      [rectTrack, rectProgress].forEach(el => {
+        el.setAttribute('x', x); el.setAttribute('y', y);
+        el.setAttribute('width', d.w); el.setAttribute('height', d.h);
+        el.setAttribute('rx', d.rx);
+      });
+    }
+
+    const geom = getActiveGeom();
+    geom.track.setAttribute('stroke-width', strokeWidth);
+    geom.progress.setAttribute('stroke-width', strokeWidth);
+    const [on, off] = dasharrayFor(lineStyle, geom.perimeter, strokeWidth);
+    geom.progress.setAttribute('stroke-dasharray', `${on} ${off}`);
+    render();
+  }
+
+  let totalMs = 30000;
+  let progressMs = 0;     // elapsed time, always counts 0 -> totalMs
+  let running = false;
+  let lastTick = null;
+  let rafId = null;
+  let soundOn = true;
+  let audioCtx = null;
+  let lastBeepedSecond = null;
+
+  function fmt(ms){
+    const s = Math.max(0, Math.ceil(ms/1000));
+    const m = Math.floor(s/60);
+    const r = s % 60;
+    return String(m).padStart(2,'0') + ':' + String(r).padStart(2,'0');
+  }
+
+  function render(){
+    const remaining = totalMs - progressMs;
+    const displayMs = mode === 'down' ? remaining : progressMs;
+    readout.textContent = fmt(displayMs);
+
+    const filledFrac = totalMs > 0 ? progressMs / totalMs : 0;
+    const ringFrac = mode === 'down' ? (1 - filledFrac) : filledFrac;
+    const geom = getActiveGeom();
+    geom.progress.style.strokeDashoffset = geom.perimeter * (1 - ringFrac);
+
+    if (remaining <= 3000 && remaining > 0){
+      readout.classList.add('pulse');
+    } else {
+      readout.classList.remove('pulse');
+    }
+  }
+
+  function beep(freq, dur){
+    if (!soundOn) return;
+    try{
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    }catch(e){}
+  }
+
+  function tick(ts){
+    if (!running) return;
+    if (lastTick === null) lastTick = ts;
+    const dt = ts - lastTick;
+    lastTick = ts;
+    progressMs = Math.min(totalMs, progressMs + dt);
+    render();
+
+    const remaining = totalMs - progressMs;
+    const currentSecond = Math.ceil(remaining/1000);
+    if (currentSecond <= 3 && currentSecond >= 1 && currentSecond !== lastBeepedSecond){
+      beep(880, 0.12);
+      lastBeepedSecond = currentSecond;
+    }
+
+    if (progressMs >= totalMs){
+      running = false;
+      statusLabel.textContent = 'DONE';
+      stage.classList.add('done');
+      beep(1400, 0.4);
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start(){
+    if (progressMs >= totalMs) return;
+    running = true;
+    lastTick = null;
+    statusLabel.textContent = 'RUNNING';
+    stage.classList.remove('done');
+    rafId = requestAnimationFrame(tick);
+  }
+  function pause(){
+    running = false;
+    statusLabel.textContent = 'PAUSED';
+    cancelAnimationFrame(rafId);
+  }
+  function reset(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    progressMs = 0;
+    lastBeepedSecond = null;
+    statusLabel.textContent = 'READY';
+    stage.classList.remove('done');
+    render();
+  }
+  function setDuration(ms){
+    totalMs = ms;
+    progressMs = 0;
+    lastBeepedSecond = null;
+    running = false;
+    cancelAnimationFrame(rafId);
+    statusLabel.textContent = 'READY';
+    stage.classList.remove('done');
+    render();
+  }
+
+  document.getElementById('startBtn').onclick = start;
+  document.getElementById('pauseBtn').onclick = pause;
+  document.getElementById('resetBtn').onclick = reset;
+  document.getElementById('setBtn').onclick = () => {
+    const m = parseInt(document.getElementById('mins').value || 0, 10);
+    const s = parseInt(document.getElementById('secs').value || 0, 10);
+    setDuration((m*60 + s) * 1000);
+  };
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.onclick = () => {
+      const sec = parseInt(btn.dataset.preset, 10);
+      document.getElementById('mins').value = Math.floor(sec/60);
+      document.getElementById('secs').value = sec % 60;
+      setDuration(sec * 1000);
+    };
+  });
+
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.onclick = () => {
+      mode = btn.dataset.mode;
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      reset();
+    };
+  });
+
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.onclick = () => {
+      currentAccent = sw.dataset.accent;
+      document.documentElement.style.setProperty('--accent', currentAccent);
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    };
+  });
+
+  document.querySelectorAll('[data-bg]').forEach(btn => {
+    btn.onclick = () => {
+      currentBgKey = btn.dataset.bg;
+      document.body.classList.remove('bg-black','bg-white','bg-green');
+      if (currentBgKey) document.body.classList.add(currentBgKey);
+    };
+  });
+
+  document.querySelectorAll('[data-shape]').forEach(btn => {
+    btn.onclick = () => {
+      shapeType = btn.dataset.shape;
+      document.querySelectorAll('[data-shape]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      updateGeometry();
+    };
+  });
+
+  document.querySelectorAll('[data-width]').forEach(btn => {
+    btn.onclick = () => {
+      strokeWidth = parseFloat(btn.dataset.width);
+      document.querySelectorAll('[data-width]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      updateGeometry();
+    };
+  });
+
+  document.querySelectorAll('[data-style]').forEach(btn => {
+    btn.onclick = () => {
+      lineStyle = btn.dataset.style;
+      document.querySelectorAll('[data-style]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      updateGeometry();
+    };
+  });
+
+  document.getElementById('soundBtn').onclick = (e) => {
+    soundOn = !soundOn;
+    e.target.textContent = soundOn ? '🔊 音: ON' : '🔇 音: OFF';
+  };
+
+  document.getElementById('recordBtn').onclick = () => {
+    document.body.classList.add('record-mode');
+  };
+  document.body.addEventListener('click', (e) => {
+    if (document.body.classList.contains('record-mode')){
+      document.body.classList.remove('record-mode');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space'){
+      e.preventDefault();
+      running ? pause() : start();
+    }
+    if (e.key === 'Escape'){
+      document.body.classList.remove('record-mode');
+    }
+  });
+
+  /* ---------------- 自動録画(音源に同期して自動収録) ---------------- */
+  const audioFileInput = document.getElementById('audioFile');
+  const recStartInput = document.getElementById('recStart');
+  const recEndInput = document.getElementById('recEnd');
+  const recStartBtn = document.getElementById('recStartBtn');
+  const recCancelBtn = document.getElementById('recCancelBtn');
+  const recStatusRow = document.getElementById('recStatusRow');
+  const recStatusText = document.getElementById('recStatusText');
+  const recCanvas = document.getElementById('recCanvas');
+
+  let recordingActive = false;
+  let mediaRecorder = null;
+  let recChunks = [];
+  let recRafId = null;
+  let recAudioCtx = null;
+  let recAudioEl = null;
+
+  function parseTimeStr(str){
+    if (!str) return NaN;
+    const parts = str.trim().split(':').map(Number);
+    if (parts.some(isNaN)) return NaN;
+    if (parts.length === 2) return parts[0]*60 + parts[1];
+    return parts[0];
+  }
+
+  function getRecordGeom(){
+    if (shapeType === 'circle'){
+      return { type:'circle', box:{w:100,h:100}, cx:50, cy:50, r:46, perimeter: CIRCLE_PERIM };
+    }
+    const d = rectDims(shapeType);
+    return { type:'rect', box:{ w:d.w+8, h:d.h+8 }, x:4, y:4, w:d.w, h:d.h, rx:d.rx, perimeter: rectPerimeter(d.w,d.h,d.rx) };
+  }
+
+  function pathForShape(ctx, geom, scale){
+    ctx.beginPath();
+    if (geom.type === 'circle'){
+      ctx.arc(geom.cx*scale, geom.cy*scale, geom.r*scale, -Math.PI/2, -Math.PI/2 + 2*Math.PI);
+    } else {
+      const x = geom.x*scale, y = geom.y*scale, w = geom.w*scale, h = geom.h*scale, r = geom.rx*scale;
+      if (ctx.roundRect){
+        ctx.roundRect(x,y,w,h,r);
+      } else {
+        ctx.moveTo(x+r,y);
+        ctx.arcTo(x+w,y,x+w,y+h,r);
+        ctx.arcTo(x+w,y+h,x,y+h,r);
+        ctx.arcTo(x,y+h,x,y,r);
+        ctx.arcTo(x,y,x+w,y,r);
+        ctx.closePath();
+      }
+    }
+  }
+
+  function drawRecordFrame(ctx, geom, scale){
+    const preset = BG_PRESETS[currentBgKey];
+    const W = geom.box.w*scale, H = geom.box.h*scale;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = preset.bg;
+    ctx.fillRect(0,0,W,H);
+
+    const remaining = totalMs - progressMs;
+    const filledFrac = totalMs > 0 ? progressMs / totalMs : 0;
+    const ringFrac = mode === 'down' ? (1 - filledFrac) : filledFrac;
+    const [on, off] = dasharrayFor(lineStyle, geom.perimeter, strokeWidth);
+    const dashOffset = geom.perimeter * (1 - ringFrac);
+
+    ctx.lineWidth = strokeWidth*scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.strokeStyle = preset.track;
+    ctx.setLineDash([]);
+    pathForShape(ctx, geom, scale);
+    ctx.stroke();
+
+    ctx.strokeStyle = currentAccent;
+    ctx.setLineDash([on*scale, off*scale]);
+    ctx.lineDashOffset = dashOffset*scale;
+    pathForShape(ctx, geom, scale);
+    ctx.stroke();
+
+    const displayMs = mode === 'down' ? remaining : progressMs;
+    ctx.setLineDash([]);
+    ctx.fillStyle = preset.text;
+    ctx.font = `700 ${Math.round(H*0.2)}px 'Space Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fmt(displayMs), W/2, H/2);
+  }
+
+  function stopRecording(){
+    if (!recordingActive) return;
+    recordingActive = false;
+    cancelAnimationFrame(recRafId);
+    if (recAudioEl){ recAudioEl.pause(); }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recStatusText.textContent = '保存中...';
+    setTimeout(() => { recStatusRow.style.display = 'none'; }, 1500);
+    recStartBtn.disabled = false;
+  }
+
+  recStartBtn.onclick = async () => {
+    if (recordingActive) return;
+    const file = audioFileInput.files[0];
+    if (!file){ alert('音源(または動画)ファイルを選んでね'); return; }
+    const startSec = parseTimeStr(recStartInput.value || '0');
+    const endSec = parseTimeStr(recEndInput.value);
+    if (isNaN(startSec) || isNaN(endSec) || endSec <= startSec){
+      alert('開始・終了時間の形式を確認してね(例: 1:05)。終了は開始より後にしてください'); return;
+    }
+    const durMs = (endSec - startSec) * 1000;
+
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const geom = getRecordGeom();
+    const SCALE = 12;
+    recCanvas.width = geom.box.w * SCALE;
+    recCanvas.height = geom.box.h * SCALE;
+    const ctx = recCanvas.getContext('2d');
+
+    recAudioEl = document.createElement('audio');
+    recAudioEl.src = URL.createObjectURL(file);
+    recAudioEl.crossOrigin = 'anonymous';
+    document.body.appendChild(recAudioEl);
+    await new Promise((res, rej) => {
+      recAudioEl.onloadedmetadata = res;
+      recAudioEl.onerror = rej;
+    }).catch(() => { alert('ファイルを読み込めなかった'); });
+    recAudioEl.currentTime = startSec;
+
+    if (!recAudioCtx) recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = recAudioCtx.createMediaElementSource(recAudioEl);
+    const dest = recAudioCtx.createMediaStreamDestination();
+    source.connect(dest);
+    source.connect(recAudioCtx.destination);
+
+    const videoStream = recCanvas.captureStream(30);
+    const combined = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    try{
+      mediaRecorder = new MediaRecorder(combined, { mimeType });
+    }catch(e){
+      alert('このブラウザは自動録画に対応していないみたい。デスクトップのChromeかEdgeで試してみて');
+      return;
+    }
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `countdown-rec-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      if (recAudioEl){ recAudioEl.remove(); recAudioEl = null; }
+    };
+
+    recordingActive = true;
+    recStartBtn.disabled = true;
+    recStatusRow.style.display = 'flex';
+    recStatusText.textContent = '録画準備中...';
+
+    setDuration(durMs);
+    mediaRecorder.start();
+    recAudioEl.play();
+    start();
+
+    function drawLoop(){
+      if (!recordingActive) return;
+      drawRecordFrame(ctx, geom, SCALE);
+      recStatusText.textContent = `録画中... 残り ${fmt(totalMs - progressMs)}`;
+      if (progressMs >= totalMs){
+        stopRecording();
+        return;
+      }
+      recRafId = requestAnimationFrame(drawLoop);
+    }
+    drawLoop();
+  };
+
+  recCancelBtn.onclick = () => {
+    pause();
+    stopRecording();
+  };
+
+  updateGeometry();
+</script>
+</body>
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テロップ・指差し・吹き出し素材</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
+
+  :root{
+    --bg: #000000;
+    --accent: #FFD23F;
+    --text: #F4F1EA;
+    --text-dim: #F4F1EA80;
+    --panel: #14151ACC;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Zen Kaku Gothic New', system-ui, sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; overflow:hidden;
+    transition: background 0.4s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.bg-black{ --bg:#000000; }
+  body.bg-white{ --bg:#FFFFFF; --text:#0B0C10; --text-dim:#0B0C1080; --panel:#FFFFFFCC; }
+  body.bg-green{ --bg:#00FF00; --text:#050505; --text-dim:#05050580; --panel:#FFFFFFCC; }
+
+  .stage{
+    position:relative;
+    width:min(92vw, 640px);
+    height:min(70vh, 460px);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ---------- テロップ ---------- */
+  #telopStage{ position:relative; display:flex; align-items:center; justify-content:center; width:100%; }
+  .telop{
+    position:relative;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-weight:900;
+    font-size:clamp(28px, 6.2vw, 56px);
+    color:var(--text);
+    padding:10px 6px;
+    white-space:nowrap;
+  }
+  .telop-bar{
+    position:absolute; inset:0 -14px;
+    background:var(--accent);
+    transform:scaleX(0);
+    transform-origin:left center;
+    z-index:0;
+  }
+  .telop-box{
+    position:absolute; inset:0 -14px;
+    border:6px solid var(--accent);
+    transform:scaleX(0);
+    transform-origin:left center;
+    z-index:0;
+  }
+  .telop-label{ position:relative; z-index:1; }
+
+  .telop.style-pop .telop-label.play{ animation: telopPop 0.5s cubic-bezier(.2,1.7,.4,1); }
+  @keyframes telopPop{
+    0%{ transform:scale(0) rotate(-6deg); opacity:0; }
+    60%{ transform:scale(1.12) rotate(2deg); opacity:1; }
+    100%{ transform:scale(1) rotate(0deg); opacity:1; }
+  }
+  .telop.style-bar .telop-bar.play{ animation: telopBar 0.35s ease-out forwards; }
+  .telop.style-bar .telop-label{ opacity:0; }
+  .telop.style-bar .telop-label.play{ animation: telopFade 0.4s ease-out 0.25s forwards; }
+  .telop.style-box .telop-box.play{ animation: telopBar 0.4s ease-out forwards; }
+  .telop.style-box .telop-label{ opacity:0; }
+  .telop.style-box .telop-label.play{ animation: telopFade 0.4s ease-out 0.3s forwards; }
+  @keyframes telopBar{ to{ transform:scaleX(1); } }
+  @keyframes telopFade{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+  .telop.style-bar .telop-label.play, .telop.style-box .telop-label.play{ color:#0B0C10; }
+  body.bg-white .telop.style-bar .telop-label.play,
+  body.bg-white .telop.style-box .telop-label.play{ color:#F4F1EA; }
+
+  /* ---------- 指差し ---------- */
+  #pointerStage{ position:relative; width:100%; height:100%; cursor:crosshair; }
+  #pointerStage .hint-tap{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--text-dim); font-size:14px; pointer-events:none;
+  }
+  .pointer-marker{ position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .pointer-marker.circle .p-shape{
+    width:70px; height:70px; border-radius:50%; border:5px solid var(--accent);
+  }
+  .pointer-marker.circle .p-shape.idle{ animation: ringPulse 1.4s ease-in-out infinite; }
+  @keyframes ringPulse{
+    0%,100%{ transform:scale(0.9); opacity:0.6; }
+    50%{ transform:scale(1.12); opacity:1; }
+  }
+  .pointer-marker.arrow .p-shape{
+    width:0; height:0;
+    border-left:20px solid transparent; border-right:20px solid transparent;
+    border-top:34px solid var(--accent);
+    transform:translateY(-14px);
+  }
+  .pointer-marker.arrow .p-shape.idle{ animation: arrowBounce 0.9s ease-in-out infinite; }
+  @keyframes arrowBounce{
+    0%,100%{ transform:translateY(-14px); }
+    50%{ transform:translateY(-2px); }
+  }
+  .pointer-marker.hand .p-shape{ width:52px; height:52px; }
+  .pointer-marker.hand .p-shape.idle{ animation: handTap 0.9s ease-in-out infinite; }
+  @keyframes handTap{
+    0%,100%{ transform:translate(0,0) rotate(0deg); }
+    40%{ transform:translate(4px,4px) rotate(-4deg); }
+  }
+  .p-shape.enter{ animation: markerIn 0.5s cubic-bezier(.2,1.7,.4,1); }
+  @keyframes markerIn{
+    0%{ transform:scale(0); opacity:0; }
+    70%{ transform:scale(1.2); opacity:1; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  .pointer-label{
+    background:var(--accent); color:#0B0C10; font-weight:700;
+    font-size:14px; padding:6px 14px; border-radius:999px; white-space:nowrap;
+  }
+
+  /* ---------- 吹き出し ---------- */
+  #bubbleStage{ position:relative; width:100%; display:flex; align-items:center; justify-content:center; }
+  .bubble{
+    position:relative;
+    max-width:80%;
+    padding:20px 26px;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-weight:700;
+    font-size:clamp(18px, 3.4vw, 26px);
+    color:#0B0C10;
+    background:var(--text);
+    border-radius:22px;
+    opacity:0;
+    transform:scale(0.6);
+  }
+  .bubble.play{ animation: bubbleIn 0.45s cubic-bezier(.2,1.7,.4,1) forwards; }
+  .bubble.fadeout{ animation: bubbleOut 0.4s ease-in forwards; }
+  @keyframes bubbleIn{
+    0%{ opacity:0; transform:scale(0.5); }
+    70%{ opacity:1; transform:scale(1.08); }
+    100%{ opacity:1; transform:scale(1); }
+  }
+  @keyframes bubbleOut{ to{ opacity:0; transform:scale(0.85) translateY(-8px); } }
+  .bubble::after{
+    content:''; position:absolute; left:36px; bottom:-16px;
+    border-width:16px 12px 0 0; border-style:solid;
+    border-color:var(--text) transparent transparent transparent;
+  }
+  .bubble.style-neon{ background:transparent; border:3px solid var(--accent); color:var(--text); box-shadow:0 0 18px var(--accent); }
+  .bubble.style-neon::after{ border-color:var(--accent) transparent transparent transparent; }
+  .bubble.style-jagged{
+    background:var(--accent); color:#0B0C10; border-radius:6px;
+    clip-path: polygon(2% 12%, 10% 2%, 22% 10%, 34% 0%, 46% 9%, 58% 1%, 70% 10%, 82% 2%, 94% 12%,
+                        100% 30%, 92% 42%, 100% 55%, 90% 66%, 96% 82%, 82% 78%, 74% 92%,
+                        62% 82%, 50% 96%, 38% 84%, 24% 94%, 18% 80%, 4% 84%, 10% 66%, 0% 50%, 8% 30%);
+  }
+  .bubble.style-jagged::after{ display:none; }
+
+  /* ---------- shared panel ---------- */
+  .panel{
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    background:var(--panel); backdrop-filter:blur(14px);
+    border-radius:20px; padding:16px 20px;
+    display:flex; flex-direction:column; gap:14px;
+    width:min(92vw, 480px); max-height:80vh; overflow-y:auto;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index:10;
+  }
+  body.record-mode .panel{ opacity:0; pointer-events:none; transform:translateX(-50%) translateY(20px); }
+  .row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .row-label{ font-size:12px; color:var(--text-dim); width:52px; flex:none; }
+  button{
+    font-family:'Zen Kaku Gothic New', sans-serif; font-size:13px; border:none; border-radius:10px;
+    padding:9px 14px; background:#FFFFFF14; color:var(--text); cursor:pointer;
+    transition: background 0.2s ease, transform 0.1s ease; white-space:nowrap;
+  }
+  button:hover{ background:#FFFFFF26; }
+  button:active{ transform:scale(0.96); }
+  button.primary{ background:var(--accent); color:#0B0C10; font-weight:700; }
+  button.opt-active{ background:var(--accent); color:#0B0C10; font-weight:700; }
+  .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; flex:none; }
+  .swatch.active{ border-color:var(--text); }
+  input[type="text"]{
+    flex:1; min-width:140px;
+    background:#FFFFFF10; border:1px solid #FFFFFF22; border-radius:8px;
+    color:var(--text); font-family:'Zen Kaku Gothic New', sans-serif; font-size:14px; padding:9px 10px;
+  }
+  .hint{
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    font-size:12px; color:var(--text-dim); opacity:0; transition:opacity 0.3s ease; pointer-events:none;
+  }
+  body.record-mode .hint{ opacity:0.6; }
+  @media (max-width:480px){
+    .panel{ padding:14px 16px; gap:10px; }
+    button{ font-size:12px; padding:8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="hint">Esc / タップで操作パネルを表示</div>
+
+  <div class="stage">
+    <div id="telopStage">
+      <div class="telop style-pop" id="telop">
+        <div class="telop-bar"></div>
+        <div class="telop-box"></div>
+        <div class="telop-label play" id="telopLabel">神回すぎる</div>
+      </div>
+    </div>
+
+    <div id="pointerStage" style="display:none;">
+      <div class="hint-tap" id="pointerHint">ステージをタップして矢印を置く位置を決めてね</div>
+    </div>
+
+    <div id="bubbleStage" style="display:none;">
+      <div class="bubble style-normal play" id="bubble">それな</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="row">
+      <span class="row-label">種類</span>
+      <button data-mode="telop" class="opt-active">テロップ</button>
+      <button data-mode="pointer">指差し</button>
+      <button data-mode="bubble">吹き出し</button>
+    </div>
+
+    <div class="row" id="textRow">
+      <span class="row-label">文字</span>
+      <input type="text" id="textInput" value="神回すぎる">
+    </div>
+
+    <div class="row" id="telopStyleRow">
+      <span class="row-label">演出</span>
+      <button data-telop-style="pop" class="opt-active">ポップ</button>
+      <button data-telop-style="bar">帯スライド</button>
+      <button data-telop-style="box">囲み枠</button>
+    </div>
+
+    <div class="row" id="pointerStyleRow" style="display:none;">
+      <span class="row-label">形</span>
+      <button data-pointer-style="circle" class="opt-active">丸で囲む</button>
+      <button data-pointer-style="arrow">矢印</button>
+      <button data-pointer-style="hand">指マーク</button>
+    </div>
+
+    <div class="row" id="bubbleStyleRow" style="display:none;">
+      <span class="row-label">形</span>
+      <button data-bubble-style="normal" class="opt-active">通常</button>
+      <button data-bubble-style="neon">ネオン</button>
+      <button data-bubble-style="jagged">びっくり</button>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="playBtn">▶ 再生</button>
+      <button id="resetBtn">リセット</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">自動</span>
+      <button data-loop="0" class="opt-active">OFF</button>
+      <button data-loop="2000">2秒毎</button>
+      <button data-loop="3000">3秒毎</button>
+      <button data-loop="5000">5秒毎</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">配色</span>
+      <div class="swatch active" style="background:#FFD23F" data-accent="#FFD23F"></div>
+      <div class="swatch" style="background:#F4423A" data-accent="#F4423A"></div>
+      <div class="swatch" style="background:#00D4FF" data-accent="#00D4FF"></div>
+      <div class="swatch" style="background:#F4F1EA" data-accent="#F4F1EA"></div>
+      <div class="swatch" style="background:#9A9A9A" data-accent="#9A9A9A"></div>
+    </div>
+
+    <div class="row">
+      <span class="row-label">背景</span>
+      <button data-bg="" class="opt-active">黒</button>
+      <button data-bg="bg-white">白</button>
+      <button data-bg="bg-green">グリーンバック</button>
+    </div>
+
+    <div class="row">
+      <button id="recordBtn">🎬 収録モード(UIを隠す)</button>
+    </div>
+  </div>
+
+<script>
+  const telopStage = document.getElementById('telopStage');
+  const pointerStage = document.getElementById('pointerStage');
+  const bubbleStage = document.getElementById('bubbleStage');
+  const telop = document.getElementById('telop');
+  const telopLabel = document.getElementById('telopLabel');
+  const bubble = document.getElementById('bubble');
+  const textInput = document.getElementById('textInput');
+  const textRow = document.getElementById('textRow');
+  const telopStyleRow = document.getElementById('telopStyleRow');
+  const pointerStyleRow = document.getElementById('pointerStyleRow');
+  const bubbleStyleRow = document.getElementById('bubbleStyleRow');
+  const pointerHint = document.getElementById('pointerHint');
+
+  let mode = 'telop';
+  let telopStyle = 'pop';
+  let pointerStyle = 'circle';
+  let bubbleStyle = 'normal';
+  let pointerAnchor = null; // {xPct, yPct}
+  let loopMs = 0;
+  let loopTimer = null;
+  let bubbleTimeout = null;
+
+  const DEFAULT_TEXT = { telop: '神回すぎる', pointer: 'ここ見て', bubble: 'それな' };
+
+  function setMode(next){
+    mode = next;
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('opt-active', b.dataset.mode === mode));
+    telopStage.style.display = mode === 'telop' ? 'flex' : 'none';
+    pointerStage.style.display = mode === 'pointer' ? 'block' : 'none';
+    bubbleStage.style.display = mode === 'bubble' ? 'flex' : 'none';
+    telopStyleRow.style.display = mode === 'telop' ? 'flex' : 'none';
+    pointerStyleRow.style.display = mode === 'pointer' ? 'flex' : 'none';
+    bubbleStyleRow.style.display = mode === 'bubble' ? 'flex' : 'none';
+    textInput.value = DEFAULT_TEXT[mode];
+  }
+
+  function playTelop(){
+    telop.className = `telop style-${telopStyle}`;
+    telopLabel.textContent = textInput.value || DEFAULT_TEXT.telop;
+    telopLabel.classList.remove('play');
+    const bar = telop.querySelector('.telop-bar');
+    const box = telop.querySelector('.telop-box');
+    bar.classList.remove('play'); box.classList.remove('play');
+    void telop.offsetWidth;
+    telopLabel.classList.add('play');
+    bar.classList.add('play'); box.classList.add('play');
+  }
+
+  function renderPointerMarker(){
+    pointerStage.querySelectorAll('.pointer-marker').forEach(m => m.remove());
+    if (!pointerAnchor) return;
+    const marker = document.createElement('div');
+    marker.className = `pointer-marker ${pointerStyle}`;
+    marker.style.left = pointerAnchor.xPct + '%';
+    marker.style.top = pointerAnchor.yPct + '%';
+
+    let shapeHTML = '';
+    if (pointerStyle === 'circle'){
+      shapeHTML = `<div class="p-shape idle"></div>`;
+    } else if (pointerStyle === 'arrow'){
+      shapeHTML = `<div class="p-shape idle"></div>`;
+    } else {
+      shapeHTML = `<svg class="p-shape idle" viewBox="0 0 100 100"><path d="M30 46 L30 84 L18 84 L18 46 Z M30 46 L44 14 C46 10 52 10 54 14 C56 18 56 24 54 30 L48 46 L76 46 C82 46 86 52 84 58 L76 80 C74 83 71 84 68 84 L30 84" fill="var(--accent)"></path></svg>`;
+    }
+    const labelHTML = `<div class="pointer-label">${(textInput.value || DEFAULT_TEXT.pointer)}</div>`;
+    marker.innerHTML = pointerStyle === 'arrow'
+      ? shapeHTML + labelHTML
+      : labelHTML + shapeHTML;
+    pointerStage.appendChild(marker);
+    pointerHint.style.display = 'none';
+  }
+
+  function playPointer(){
+    if (!pointerAnchor){
+      pointerAnchor = { xPct: 50, yPct: 50 };
+    }
+    renderPointerMarker();
+    const shape = pointerStage.querySelector('.p-shape');
+    if (shape){
+      shape.classList.remove('enter');
+      void shape.offsetWidth;
+      shape.classList.add('enter');
+    }
+  }
+
+  pointerStage.addEventListener('click', (e) => {
+    if (mode !== 'pointer' || document.body.classList.contains('record-mode')) return;
+    const rect = pointerStage.getBoundingClientRect();
+    pointerAnchor = {
+      xPct: ((e.clientX - rect.left) / rect.width) * 100,
+      yPct: ((e.clientY - rect.top) / rect.height) * 100
+    };
+    playPointer();
+  });
+
+  function playBubble(){
+    clearTimeout(bubbleTimeout);
+    bubble.className = `bubble style-${bubbleStyle}`;
+    bubble.textContent = textInput.value || DEFAULT_TEXT.bubble;
+    void bubble.offsetWidth;
+    bubble.classList.add('play');
+    if (loopMs > 0){
+      bubbleTimeout = setTimeout(() => {
+        bubble.classList.add('fadeout');
+      }, Math.max(1200, loopMs - 500));
+    }
+  }
+
+  function playCurrent(){
+    if (mode === 'telop') playTelop();
+    else if (mode === 'pointer') playPointer();
+    else playBubble();
+  }
+
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.onclick = () => setMode(btn.dataset.mode);
+  });
+
+  document.querySelectorAll('[data-telop-style]').forEach(btn => {
+    btn.onclick = () => {
+      telopStyle = btn.dataset.telopStyle;
+      document.querySelectorAll('[data-telop-style]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      playTelop();
+    };
+  });
+
+  document.querySelectorAll('[data-pointer-style]').forEach(btn => {
+    btn.onclick = () => {
+      pointerStyle = btn.dataset.pointerStyle;
+      document.querySelectorAll('[data-pointer-style]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      if (pointerAnchor) playPointer();
+    };
+  });
+
+  document.querySelectorAll('[data-bubble-style]').forEach(btn => {
+    btn.onclick = () => {
+      bubbleStyle = btn.dataset.bubbleStyle;
+      document.querySelectorAll('[data-bubble-style]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      playBubble();
+    };
+  });
+
+  document.getElementById('playBtn').onclick = playCurrent;
+
+  document.getElementById('resetBtn').onclick = () => {
+    pointerAnchor = null;
+    pointerStage.querySelectorAll('.pointer-marker').forEach(m => m.remove());
+    pointerHint.style.display = 'flex';
+    bubble.classList.remove('play','fadeout');
+    telopLabel.classList.remove('play');
+  };
+
+  document.querySelectorAll('[data-loop]').forEach(btn => {
+    btn.onclick = () => {
+      loopMs = parseInt(btn.dataset.loop, 10);
+      document.querySelectorAll('[data-loop]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      clearInterval(loopTimer);
+      if (loopMs > 0){
+        loopTimer = setInterval(playCurrent, loopMs);
+      }
+    };
+  });
+
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.onclick = () => {
+      document.documentElement.style.setProperty('--accent', sw.dataset.accent);
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    };
+  });
+
+  document.querySelectorAll('[data-bg]').forEach(btn => {
+    btn.onclick = () => {
+      document.body.classList.remove('bg-black','bg-white','bg-green');
+      if (btn.dataset.bg) document.body.classList.add(btn.dataset.bg);
+      document.querySelectorAll('[data-bg]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+    };
+  });
+
+  document.getElementById('recordBtn').onclick = () => {
+    document.body.classList.add('record-mode');
+  };
+  document.body.addEventListener('click', (e) => {
+    if (document.body.classList.contains('record-mode')){
+      document.body.classList.remove('record-mode');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape'){ document.body.classList.remove('record-mode'); }
+    if (e.code === 'Space'){ e.preventDefault(); playCurrent(); }
+  });
+</script>
+</body>
+</html>

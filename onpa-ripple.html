@@ -349,7 +349,6 @@
       <div class="chip-row" id="qualityChips">
         <button class="chip active" data-quality="1">標準</button>
         <button class="chip" data-quality="2">高画質(2倍)</button>
-        <button class="chip" data-quality="3">最高画質(3倍・重め)</button>
       </div>
 
       <div class="row">
@@ -677,7 +676,7 @@ qualityChips.forEach(chip=>{
   chip.addEventListener('click', ()=>{
     qualityChips.forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
-    selectedQuality = parseInt(chip.dataset.quality, 10);
+    selectedQuality = Math.min(2, parseInt(chip.dataset.quality, 10));
   });
 });
 

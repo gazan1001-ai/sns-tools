@@ -345,6 +345,13 @@
         <button class="chip" data-mode="effect-only">エフェクトのみ(黒背景・合成用)</button>
       </div>
 
+      <p class="section-label">書き出し画質</p>
+      <div class="chip-row" id="qualityChips">
+        <button class="chip active" data-quality="1">標準</button>
+        <button class="chip" data-quality="2">高画質(2倍)</button>
+        <button class="chip" data-quality="3">最高画質(3倍・重め)</button>
+      </div>
+
       <div class="row">
         <button class="btn btn-rec" id="recBtn">● 録画開始</button>
       </div>
@@ -468,6 +475,8 @@ const modeChips = document.querySelectorAll('#modeChips .chip');
 const colorSwatches = document.querySelectorAll('#colorSwatches [data-color]');
 const ratioChips = document.querySelectorAll('#ratioChips .chip');
 const exportModeChips = document.querySelectorAll('#exportModeChips .chip');
+const qualityChips = document.querySelectorAll('#qualityChips .chip');
+let selectedQuality = 1;
 const stage = document.querySelector('.stage');
 
 let audioCtx, analyser, sourceNode, destNode;
@@ -664,6 +673,14 @@ exportModeChips.forEach(chip=>{
   });
 });
 
+qualityChips.forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    qualityChips.forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    selectedQuality = parseInt(chip.dataset.quality, 10);
+  });
+});
+
 let energyHistory = [];
 const HISTORY_LEN = 43; // ~ energy history window
 let cooldownFrames = 0;
@@ -701,9 +718,11 @@ function pickPalette(){
   return { stroke: settings.color, glow: hexToRgba(settings.color, 0.55) };
 }
 
+let recordingScaleBoost = 1;
+
 function resizeCanvas(){
   const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = (window.devicePixelRatio || 1) * recordingScaleBoost;
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -1493,6 +1512,8 @@ recBtn.addEventListener('click', async ()=>{
 
 function startRecording(){
   ensureAudioContext();
+  recordingScaleBoost = selectedQuality;
+  resizeCanvas();
   const videoStream = canvas.captureStream(30);
   const audioStream = destNode.stream;
   const combined = new MediaStream([
@@ -1541,6 +1562,8 @@ function stopRecording(){
   isRecording = false;
   recBtn.textContent = '● 録画開始';
   recBtn.classList.remove('active');
+  recordingScaleBoost = 1;
+  resizeCanvas();
 }
 
 resizeCanvas();

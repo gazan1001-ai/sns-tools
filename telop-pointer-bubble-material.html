@@ -20,11 +20,13 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'Zen Kaku Gothic New', system-ui, sans-serif;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:100vh; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    min-height:100vh; overflow-y:auto; overflow-x:hidden;
+    padding: 24px 0;
     transition: background 0.4s ease;
     -webkit-tap-highlight-color: transparent;
   }
+  body.record-mode{ justify-content:center; }
   body.bg-black{ --bg:#000000; }
   body.bg-white{ --bg:#FFFFFF; --text:#0B0C10; --text-dim:#0B0C1080; --panel:#FFFFFFCC; }
   body.bg-green{ --bg:#00FF00; --text:#050505; --text-dim:#05050580; --panel:#FFFFFFCC; }
@@ -77,9 +79,8 @@
   .telop.style-box .telop-label.play{ animation: telopFade 0.4s ease-out 0.3s forwards; }
   @keyframes telopBar{ to{ transform:scaleX(1); } }
   @keyframes telopFade{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
-  .telop.style-bar .telop-label.play, .telop.style-box .telop-label.play{ color:#0B0C10; }
-  body.bg-white .telop.style-bar .telop-label.play,
-  body.bg-white .telop.style-box .telop-label.play{ color:#F4F1EA; }
+  .telop.style-bar .telop-label.play{ color:#0B0C10; }
+  body.bg-white .telop.style-bar .telop-label.play{ color:#F4F1EA; }
 
   /* ---------- 指差し ---------- */
   #pointerStage{ position:relative; width:100%; height:100%; cursor:crosshair; }
@@ -164,15 +165,16 @@
 
   /* ---------- shared panel ---------- */
   .panel{
-    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    position:relative;
+    margin-top:24px;
     background:var(--panel); backdrop-filter:blur(14px);
     border-radius:20px; padding:16px 20px;
     display:flex; flex-direction:column; gap:14px;
-    width:min(92vw, 480px); max-height:80vh; overflow-y:auto;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    width:min(92vw, 480px);
+    transition: opacity 0.2s ease;
     z-index:10;
   }
-  body.record-mode .panel{ opacity:0; pointer-events:none; transform:translateX(-50%) translateY(20px); }
+  body.record-mode .panel{ display:none; }
   .row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .row-label{ font-size:12px; color:var(--text-dim); width:52px; flex:none; }
   button{
@@ -184,6 +186,8 @@
   button:active{ transform:scale(0.96); }
   button.primary{ background:var(--accent); color:#0B0C10; font-weight:700; }
   button.opt-active{ background:var(--accent); color:#0B0C10; font-weight:700; }
+  button.danger{ background:#FF453A22; color:#FF7B70; }
+  .rec-status{ font-size:12px; color:var(--text-dim); font-family:'Space Mono', monospace; }
   .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; flex:none; }
   .swatch.active{ border-color:var(--text); }
   input[type="text"]{
@@ -288,9 +292,26 @@
     </div>
 
     <div class="row">
+      <span class="row-label">録画</span>
+      <button data-recdur="3000" class="opt-active">3秒</button>
+      <button data-recdur="5000">5秒</button>
+      <button data-recdur="10000">10秒</button>
+    </div>
+
+    <div class="row">
+      <button id="recStartBtn">🔴 自動録画スタート</button>
+    </div>
+    <div class="row" id="recStatusRow" style="display:none;">
+      <span class="rec-status" id="recStatusText">録画中...</span>
+      <button id="recCancelBtn" class="danger">中止</button>
+    </div>
+
+    <div class="row">
       <button id="recordBtn">🎬 収録モード(UIを隠す)</button>
     </div>
   </div>
+
+  <canvas id="recCanvas" style="display:none;"></canvas>
 
 <script>
   const telopStage = document.getElementById('telopStage');
@@ -489,6 +510,344 @@
     if (e.key === 'Escape'){ document.body.classList.remove('record-mode'); }
     if (e.code === 'Space'){ e.preventDefault(); playCurrent(); }
   });
+
+  /* ---------------- 自動録画(CSSアニメーションをCanvasで再現して収録) ---------------- */
+  const recCanvas = document.getElementById('recCanvas');
+  const recStartBtn = document.getElementById('recStartBtn');
+  const recCancelBtn = document.getElementById('recCancelBtn');
+  const recStatusRow = document.getElementById('recStatusRow');
+  const recStatusText = document.getElementById('recStatusText');
+
+  let recDurationMs = 3000;
+  let recordingActive = false;
+  let mediaRecorder = null;
+  let recChunks = [];
+  let recRafId = null;
+
+  document.querySelectorAll('[data-recdur]').forEach(btn => {
+    btn.onclick = () => {
+      recDurationMs = parseInt(btn.dataset.recdur, 10);
+      document.querySelectorAll('[data-recdur]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+    };
+  });
+
+  function getBgFillColor(){
+    if (document.body.classList.contains('bg-white')) return '#FFFFFF';
+    if (document.body.classList.contains('bg-green')) return '#00FF00';
+    return '#000000';
+  }
+  function getTextColor(){ return getComputedStyle(document.body).getPropertyValue('--text').trim() || '#F4F1EA'; }
+  function getAccentColor(){ return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#FFD23F'; }
+
+  function interpKeyframes(kf, t){
+    if (t <= kf[0][0]) return kf[0][1];
+    for (let i=1;i<kf.length;i++){
+      if (t <= kf[i][0]){
+        const [t0,v0] = kf[i-1], [t1,v1] = kf[i];
+        const f = (t - t0) / (t1 - t0);
+        return v0 + (v1 - v0) * f;
+      }
+    }
+    return kf[kf.length-1][1];
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    if (ctx.roundRect){ ctx.roundRect(x,y,w,h,r); return; }
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawLabelPill(ctx, x, y, text, accent, unit){
+    ctx.save();
+    ctx.font = `700 ${Math.round(14*unit)}px 'Zen Kaku Gothic New', sans-serif`;
+    const tw = ctx.measureText(text).width;
+    const padX = 14*unit, h = 28*unit;
+    const w = tw + padX*2;
+    roundRectPath(ctx, x-w/2, y-h/2, w, h, h/2);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    ctx.fillStyle = '#0B0C10';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawJaggedBlob(ctx, w, h){
+    const pts = [[2,12],[10,2],[22,10],[34,0],[46,9],[58,1],[70,10],[82,2],[94,12],
+      [100,30],[92,42],[100,55],[90,66],[96,82],[82,78],[74,92],
+      [62,82],[50,96],[38,84],[24,94],[18,80],[4,84],[10,66],[0,50],[8,30]];
+    ctx.beginPath();
+    pts.forEach(([px,py], i) => {
+      const x = (px/100 - 0.5)*w, y = (py/100 - 0.5)*h;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawTelopFrame(ctx, W, H, t){
+    const accent = getAccentColor(), textColor = getTextColor();
+    const text = textInput.value || DEFAULT_TEXT.telop;
+    const cx = W/2, cy = H/2;
+    const fontSize = Math.min(W,H) * 0.13;
+    ctx.font = `900 ${Math.round(fontSize)}px 'Zen Kaku Gothic New', sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const textWidth = ctx.measureText(text).width;
+    const padX = fontSize*0.22, padY = fontSize*0.22;
+    const boxW = textWidth + padX*2, boxH = fontSize*1.25 + padY;
+
+    if (telopStyle === 'pop'){
+      let scale=1, rot=0, op=1;
+      if (t < 500){
+        scale = interpKeyframes([[0,0],[300,1.12],[500,1]], t);
+        rot = interpKeyframes([[0,-6],[300,2],[500,0]], t);
+        op = interpKeyframes([[0,0],[300,1],[500,1]], t);
+      }
+      ctx.save();
+      ctx.globalAlpha = op;
+      ctx.translate(cx,cy);
+      ctx.rotate(rot*Math.PI/180);
+      ctx.scale(scale,scale);
+      ctx.fillStyle = textColor;
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    } else {
+      let barScale = t < 350 ? t/350 : 1;
+      ctx.save();
+      if (telopStyle === 'bar'){
+        ctx.fillStyle = accent;
+        ctx.fillRect(cx-boxW/2, cy-boxH/2, boxW*barScale, boxH);
+      } else {
+        ctx.strokeStyle = accent; ctx.lineWidth = 6;
+        ctx.strokeRect(cx-boxW/2, cy-boxH/2, boxW*barScale, boxH);
+      }
+      ctx.restore();
+
+      const delay = telopStyle === 'bar' ? 250 : 300;
+      let labelOp = 0, labelY = 0;
+      if (t >= delay){
+        const lt = t - delay;
+        labelOp = interpKeyframes([[0,0],[400,1]], lt);
+        labelY = interpKeyframes([[0,6],[400,0]], lt);
+      }
+      if (labelOp > 0){
+        ctx.save();
+        ctx.globalAlpha = labelOp;
+        ctx.fillStyle = telopStyle === 'bar' ? '#0B0C10' : textColor;
+        ctx.translate(0, labelY*(H/380));
+        ctx.fillText(text, cx, cy);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawPointerFrame(ctx, W, H, t){
+    const accent = getAccentColor();
+    const anchor = pointerAnchor || { xPct:50, yPct:50 };
+    const label = textInput.value || DEFAULT_TEXT.pointer;
+    const x = W * anchor.xPct/100, y = H * anchor.yPct/100;
+    const unit = Math.min(W,H)/380;
+
+    let entScale=1, entOp=1;
+    if (t < 500){
+      entScale = interpKeyframes([[0,0],[350,1.2],[500,1]], t);
+      entOp = interpKeyframes([[0,0],[350,1],[500,1]], t);
+    }
+    const period = pointerStyle === 'circle' ? 1400 : 900;
+    const idleT = t % period;
+
+    ctx.save();
+    ctx.globalAlpha = entOp;
+    ctx.translate(x,y);
+    ctx.scale(entScale, entScale);
+
+    if (pointerStyle === 'circle'){
+      const pulseScale = interpKeyframes([[0,0.9],[700,1.12],[1400,0.9]], idleT);
+      const pulseOp = interpKeyframes([[0,0.6],[700,1],[1400,0.6]], idleT);
+      ctx.save();
+      ctx.globalAlpha *= pulseOp;
+      ctx.scale(pulseScale, pulseScale);
+      ctx.strokeStyle = accent; ctx.lineWidth = 5*unit;
+      ctx.beginPath(); ctx.arc(0,0,35*unit,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+      drawLabelPill(ctx, 0, 55*unit, label, accent, unit);
+    } else if (pointerStyle === 'arrow'){
+      const dy = interpKeyframes([[0,-14],[450,-2],[900,-14]], idleT) * unit;
+      ctx.save();
+      ctx.translate(0, dy);
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-20*unit, -34*unit);
+      ctx.lineTo(20*unit, -34*unit);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      drawLabelPill(ctx, 0, 20*unit, label, accent, unit);
+    } else { // hand
+      const hx = interpKeyframes([[0,0],[360,4],[900,0]], idleT) * unit;
+      const hy = interpKeyframes([[0,0],[360,4],[900,0]], idleT) * unit;
+      const hrot = interpKeyframes([[0,0],[360,-4],[900,0]], idleT);
+      ctx.save();
+      ctx.translate(hx,hy);
+      ctx.rotate(hrot*Math.PI/180);
+      ctx.translate(-26*unit, -26*unit);
+      ctx.scale(unit,unit);
+      const p = new Path2D('M30 46 L30 84 L18 84 L18 46 Z M30 46 L44 14 C46 10 52 10 54 14 C56 18 56 24 54 30 L48 46 L76 46 C82 46 86 52 84 58 L76 80 C74 83 71 84 68 84 L30 84');
+      ctx.fillStyle = accent;
+      ctx.fill(p);
+      ctx.restore();
+      drawLabelPill(ctx, 0, 62*unit, label, accent, unit);
+    }
+    ctx.restore();
+  }
+
+  function drawBubbleFrame(ctx, W, H, t){
+    const accent = getAccentColor(), textColor = getTextColor();
+    const text = textInput.value || DEFAULT_TEXT.bubble;
+    const cx = W/2, cy = H/2;
+    const unit = Math.min(W,H)/380;
+
+    let scale=1, op=1;
+    if (t < 450){
+      scale = interpKeyframes([[0,0.5],[315,1.08],[450,1]], t);
+      op = interpKeyframes([[0,0],[315,1],[450,1]], t);
+    }
+    ctx.font = `700 ${Math.round(20*unit)}px 'Zen Kaku Gothic New', sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const maxWidth = W*0.8;
+    const tw = Math.min(ctx.measureText(text).width, maxWidth);
+    const padX = 26*unit, padY = 20*unit;
+    const boxW = tw + padX*2, boxH = 20*unit*1.7 + padY*1.2;
+
+    ctx.save();
+    ctx.globalAlpha = op;
+    ctx.translate(cx,cy);
+    ctx.scale(scale,scale);
+
+    if (bubbleStyle === 'normal'){
+      roundRectPath(ctx, -boxW/2,-boxH/2, boxW, boxH, 22*unit);
+      ctx.fillStyle = textColor; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-boxW/2+36*unit, boxH/2);
+      ctx.lineTo(-boxW/2+48*unit, boxH/2);
+      ctx.lineTo(-boxW/2+36*unit, boxH/2+16*unit);
+      ctx.closePath();
+      ctx.fillStyle = textColor; ctx.fill();
+      ctx.fillStyle = '#0B0C10';
+    } else if (bubbleStyle === 'neon'){
+      roundRectPath(ctx, -boxW/2,-boxH/2, boxW, boxH, 22*unit);
+      ctx.shadowColor = accent; ctx.shadowBlur = 18*unit;
+      ctx.strokeStyle = accent; ctx.lineWidth = 3*unit;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(-boxW/2+36*unit, boxH/2);
+      ctx.lineTo(-boxW/2+48*unit, boxH/2);
+      ctx.lineTo(-boxW/2+36*unit, boxH/2+16*unit);
+      ctx.closePath();
+      ctx.strokeStyle = accent; ctx.stroke();
+      ctx.fillStyle = textColor;
+    } else { // jagged
+      ctx.fillStyle = accent;
+      drawJaggedBlob(ctx, boxW*1.15, boxH*1.4);
+      ctx.fillStyle = '#0B0C10';
+    }
+
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
+  recStartBtn.onclick = async () => {
+    if (recordingActive) return;
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const stageRect = document.querySelector('.stage').getBoundingClientRect();
+    const SCALE = 3;
+    const W = Math.round(stageRect.width * SCALE), H = Math.round(stageRect.height * SCALE);
+    recCanvas.width = W; recCanvas.height = H;
+    const ctx = recCanvas.getContext('2d');
+
+    const videoStream = recCanvas.captureStream(30);
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    try{
+      mediaRecorder = new MediaRecorder(videoStream, { mimeType });
+    }catch(e){
+      alert('このブラウザは自動録画に対応していないみたい。デスクトップのChromeかEdgeで試してみて');
+      return;
+    }
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${mode}-rec-${Date.now()}.webm`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+
+    const LOOP_INTERVAL = mode === 'telop' ? 1300 : (mode === 'bubble' ? 1600 : 1800);
+    const triggerTimes = [];
+    for (let time = 100; time < recDurationMs; time += LOOP_INTERVAL){
+      triggerTimes.push(time);
+    }
+    if (mode === 'pointer' && !pointerAnchor){
+      pointerAnchor = { xPct:50, yPct:50 };
+    }
+
+    recordingActive = true;
+    recStartBtn.disabled = true;
+    recStatusRow.style.display = 'flex';
+    recStatusText.textContent = '録画中...';
+
+    const startTime = performance.now();
+    function drawLoop(){
+      if (!recordingActive) return;
+      const elapsed = performance.now() - startTime;
+      let activeTrigger = triggerTimes[0] || 0;
+      for (const tm of triggerTimes){ if (tm <= elapsed) activeTrigger = tm; }
+      const localT = elapsed - activeTrigger;
+
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle = getBgFillColor();
+      ctx.fillRect(0,0,W,H);
+
+      if (mode === 'telop') drawTelopFrame(ctx, W, H, localT);
+      else if (mode === 'pointer') drawPointerFrame(ctx, W, H, localT);
+      else drawBubbleFrame(ctx, W, H, localT);
+
+      recStatusText.textContent = `録画中... 残り ${Math.max(0, Math.ceil((recDurationMs-elapsed)/1000))}秒`;
+      if (elapsed >= recDurationMs){
+        stopRecording();
+        return;
+      }
+      recRafId = requestAnimationFrame(drawLoop);
+    }
+
+    mediaRecorder.start();
+    drawLoop();
+  };
+
+  function stopRecording(){
+    if (!recordingActive) return;
+    recordingActive = false;
+    cancelAnimationFrame(recRafId);
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recStatusText.textContent = '保存中...';
+    setTimeout(() => { recStatusRow.style.display = 'none'; }, 1500);
+    recStartBtn.disabled = false;
+  }
+
+  recCancelBtn.onclick = stopRecording;
 </script>
 </body>
 </html>

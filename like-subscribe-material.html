@@ -58,6 +58,7 @@
   }
 
   .count{
+    display:none;
     font-family:'Space Mono', monospace;
     font-weight:700;
     font-size:clamp(22px, 6vmin, 40px);
@@ -169,6 +170,8 @@
   button:active{ transform:scale(0.96); }
   button.primary{ background:var(--accent); color:#fff; font-weight:700; }
   button.opt-active{ background:var(--accent); color:#fff; font-weight:700; }
+  button.danger{ background:#FF453A22; color:#FF7B70; }
+  .rec-status{ font-size:12px; color:var(--text-dim); font-family:'Space Mono', monospace; }
   .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; flex:none; }
   .swatch.active{ border-color:var(--text); }
 
@@ -254,9 +257,26 @@
     </div>
 
     <div class="row">
+      <span class="row-label">録画</span>
+      <button data-recdur="3000" class="opt-active">3秒</button>
+      <button data-recdur="5000">5秒</button>
+      <button data-recdur="10000">10秒</button>
+    </div>
+
+    <div class="row">
+      <button id="recStartBtn">🔴 自動録画スタート</button>
+    </div>
+    <div class="row" id="recStatusRow" style="display:none;">
+      <span class="rec-status" id="recStatusText">録画中...</span>
+      <button id="recCancelBtn" class="danger">中止</button>
+    </div>
+
+    <div class="row">
       <button id="recordBtn">🎬 収録モード(UIを隠す)</button>
     </div>
   </div>
+
+  <canvas id="recCanvas" style="display:none;"></canvas>
 
 <script>
   const ICONS = {
@@ -428,6 +448,314 @@
     if (e.key === 'Escape'){ document.body.classList.remove('record-mode'); }
     if (e.code === 'Space'){ e.preventDefault(); playCurrent(); }
   });
+
+  /* ---------------- 自動録画(CSSアニメーションをCanvasで再現して収録) ---------------- */
+  const recCanvas = document.getElementById('recCanvas');
+  const recStartBtn = document.getElementById('recStartBtn');
+  const recCancelBtn = document.getElementById('recCancelBtn');
+  const recStatusRow = document.getElementById('recStatusRow');
+  const recStatusText = document.getElementById('recStatusText');
+
+  let recDurationMs = 3000;
+  let recordingActive = false;
+  let mediaRecorder = null;
+  let recChunks = [];
+  let recRafId = null;
+
+  document.querySelectorAll('[data-recdur]').forEach(btn => {
+    btn.onclick = () => {
+      recDurationMs = parseInt(btn.dataset.recdur, 10);
+      document.querySelectorAll('[data-recdur]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+    };
+  });
+
+  function getBgFillColor(){
+    if (document.body.classList.contains('bg-white')) return '#FFFFFF';
+    if (document.body.classList.contains('bg-green')) return '#00FF00';
+    return '#000000';
+  }
+  function getTextColor(){ return getComputedStyle(document.body).getPropertyValue('--text').trim() || '#F4F1EA'; }
+  function getAccentColor(){ return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#F4423A'; }
+
+  function interpKeyframes(kf, t){
+    // kf: [[ms, value], ...] sorted ascending
+    if (t <= kf[0][0]) return kf[0][1];
+    for (let i=1;i<kf.length;i++){
+      if (t <= kf[i][0]){
+        const [t0,v0] = kf[i-1], [t1,v1] = kf[i];
+        const f = (t - t0) / (t1 - t0);
+        return v0 + (v1 - v0) * f;
+      }
+    }
+    return kf[kf.length-1][1];
+  }
+  function easeOutCubic(x){ return 1 - Math.pow(1-x, 3); }
+
+  function drawIconPath(ctx, style, size, fillColor, strokeColor, lineWidth){
+    const p = new Path2D(ICONS[style]);
+    ctx.save();
+    ctx.translate(-size/2, -size/2);
+    ctx.scale(size/100, size/100);
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = lineWidth / (size/100);
+    if (fillColor){ ctx.fillStyle = fillColor; ctx.fill(p); }
+    ctx.strokeStyle = strokeColor;
+    ctx.stroke(p);
+    ctx.restore();
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    if (ctx.roundRect){ ctx.roundRect(x,y,w,h,r); return; }
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function makeBurstOffsets(n){
+    const arr = [];
+    for (let i=0;i<n;i++){
+      const angle = (Math.PI*2*i/n) + Math.random()*0.4;
+      const dist = 60 + Math.random()*40;
+      arr.push({angle, dist});
+    }
+    return arr;
+  }
+
+  function drawLikeFrame(ctx, W, H, t, burst){
+    const bg = getBgFillColor(), textColor = getTextColor(), accent = getAccentColor();
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+    const scaleUnit = H/380;
+    const cx = W/2, cy = H*0.42;
+    const iconSize = Math.min(W,H)*0.30;
+
+    let bumpScale = 1;
+    if (t < 550){
+      bumpScale = interpKeyframes([[0,1],[192,1.32],[330,0.92],[550,1]], t);
+    }
+    const filled = t >= 0; // this trigger represents a "like" action
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(bumpScale, bumpScale);
+    drawIconPath(ctx, iconStyle, iconSize, filled ? accent : null, filled ? accent : textColor, 5*scaleUnit);
+    ctx.restore();
+
+    if (t < 900){
+      const f = {
+        op: interpKeyframes([[0,0],[180,1],[900,0]], t),
+        y: interpKeyframes([[0,0],[180,-6],[900,-46]], t) * scaleUnit,
+        s: interpKeyframes([[0,0.7],[180,1],[900,1]], t)
+      };
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, f.op);
+      ctx.translate(cx, cy - iconSize*0.95 + f.y);
+      ctx.scale(f.s, f.s);
+      ctx.fillStyle = accent;
+      ctx.font = `700 ${Math.round(iconSize*0.26)}px 'Space Mono', monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('+1', 0, 0);
+      ctx.restore();
+    }
+
+    if (t < 700){
+      const frac = t/700;
+      const ease = 1 - Math.pow(1-frac, 2);
+      burst.particles.forEach(p => {
+        const dx = Math.cos(p.angle)*p.dist*ease*scaleUnit;
+        const dy = Math.sin(p.angle)*p.dist*ease*scaleUnit;
+        const opacity = Math.max(0, 1-frac);
+        const size = (10*(1-0.7*frac)) * scaleUnit;
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.arc(cx+dx, cy+dy, size/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+  }
+
+  function drawBellPath(ctx, size, color, lineWidth){
+    const p1 = new Path2D('M50 12 C38 12 30 22 30 36 L30 54 L22 68 L78 68 L70 54 L70 36 C70 22 62 12 50 12 Z');
+    const p2 = new Path2D('M42 74 C42 80 45 84 50 84 C55 84 58 80 58 74');
+    ctx.save();
+    ctx.translate(-size/2, -size/2);
+    ctx.scale(size/100, size/100);
+    ctx.strokeStyle = color;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = lineWidth / (size/100);
+    ctx.stroke(p1); ctx.stroke(p2);
+    ctx.restore();
+  }
+
+  function drawSubFrame(ctx, W, H, t, burst){
+    const bg = getBgFillColor(), textColor = getTextColor(), accent = getAccentColor();
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+    const scaleUnit = H/380;
+    const cx = W/2, cy = H*0.36;
+    const bellSize = Math.min(W,H)*0.22;
+
+    let rotDeg = 0;
+    if (t < 600){
+      rotDeg = interpKeyframes([[0,0],[90,-18],[210,15],[330,-10],[450,6],[540,-3],[600,0]], t);
+    }
+    ctx.save();
+    ctx.translate(cx, cy - bellSize*0.38);
+    ctx.rotate(rotDeg*Math.PI/180);
+    drawBellPath(ctx, bellSize, textColor, 5*scaleUnit);
+    ctx.restore();
+
+    const btnW = Math.min(W,H)*0.62, btnH = btnW*0.30;
+    const btnX = cx - btnW/2, btnY = cy + bellSize*0.9;
+
+    ctx.strokeStyle = textColor;
+    ctx.lineWidth = 2*scaleUnit;
+    roundRectPath(ctx, btnX, btnY, btnW, btnH, btnH/2);
+    ctx.stroke();
+
+    let fillFrac = 0;
+    if (t < 500) fillFrac = easeOutCubic(t/500);
+    else fillFrac = 1;
+    if (fillFrac > 0){
+      ctx.save();
+      roundRectPath(ctx, btnX, btnY, btnW, btnH, btnH/2);
+      ctx.clip();
+      ctx.fillStyle = accent;
+      ctx.fillRect(btnX, btnY, btnW*fillFrac, btnH);
+      ctx.restore();
+    }
+
+    const labelDark = fillFrac > 0.6;
+    ctx.fillStyle = labelDark ? '#0B0C10' : textColor;
+    ctx.font = `700 ${Math.round(btnH*0.36)}px 'Zen Kaku Gothic New', sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(fillFrac >= 1 ? '登録済み' : '登録する', cx, btnY + btnH/2);
+
+    if (t < 900){
+      const frac = t/900;
+      const ease = 1 - Math.pow(1-frac, 2);
+      burst.sparks.forEach(s => {
+        const originX = btnX + btnW*(0.5 + s.originXFrac);
+        const originY = btnY + btnH*(0.5 + s.originYFrac);
+        const dx = Math.cos(s.angle)*s.dist*ease*scaleUnit;
+        const dy = Math.sin(s.angle)*s.dist*ease*scaleUnit;
+        const opacity = Math.max(0, 1-frac);
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.arc(originX+dx, originY+dy, 3*scaleUnit, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+  }
+
+  recStartBtn.onclick = async () => {
+    if (recordingActive) return;
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const stageRect = document.querySelector('.stage').getBoundingClientRect();
+    const SCALE = 3;
+    const W = Math.round(stageRect.width * SCALE), H = Math.round(stageRect.height * SCALE);
+    recCanvas.width = W; recCanvas.height = H;
+    const ctx = recCanvas.getContext('2d');
+
+    const videoStream = recCanvas.captureStream(30);
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    try{
+      mediaRecorder = new MediaRecorder(videoStream, { mimeType });
+    }catch(e){
+      alert('このブラウザは自動録画に対応していないみたい。デスクトップのChromeかEdgeで試してみて');
+      return;
+    }
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${view}-rec-${Date.now()}.webm`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+
+    // pre-schedule each replay of the animation across the recording duration
+    const LOOP_INTERVAL = 1400;
+    const triggers = [];
+    let baseCount = likeCount;
+    for (let time = 100; time < recDurationMs; time += LOOP_INTERVAL){
+      baseCount += 1;
+      triggers.push({
+        time,
+        count: baseCount,
+        particles: makeBurstOffsets(10),
+        sparks: (() => {
+          const arr = [];
+          for (let i=0;i<8;i++){
+            arr.push({
+              angle: Math.random()*Math.PI*2,
+              dist: 30 + Math.random()*40,
+              originXFrac: Math.random() - 0.5,   // relative to button width, computed at draw time
+              originYFrac: Math.random() - 0.5    // relative to button height
+            });
+          }
+          return arr;
+        })()
+      });
+    }
+
+    recordingActive = true;
+    recStartBtn.disabled = true;
+    recStatusRow.style.display = 'flex';
+    recStatusText.textContent = '録画中...';
+
+    const startTime = performance.now();
+    function drawLoop(){
+      if (!recordingActive) return;
+      const elapsed = performance.now() - startTime;
+      let active = triggers[0];
+      for (const tr of triggers){ if (tr.time <= elapsed) active = tr; }
+      const localT = active ? elapsed - active.time : 99999;
+      if (view === 'like'){
+        drawLikeFrame(ctx, W, H, localT, { count: active ? active.count : likeCount, particles: active ? active.particles : [] });
+      } else {
+        drawSubFrame(ctx, W, H, localT, { sparks: active ? active.sparks : [] });
+      }
+      recStatusText.textContent = `録画中... 残り ${Math.max(0, Math.ceil((recDurationMs-elapsed)/1000))}秒`;
+      if (elapsed >= recDurationMs){
+        stopRecording();
+        return;
+      }
+      recRafId = requestAnimationFrame(drawLoop);
+    }
+
+    mediaRecorder.start();
+    drawLoop();
+  };
+
+  function stopRecording(){
+    if (!recordingActive) return;
+    recordingActive = false;
+    cancelAnimationFrame(recRafId);
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recStatusText.textContent = '保存中...';
+    setTimeout(() => { recStatusRow.style.display = 'none'; }, 1500);
+    recStartBtn.disabled = false;
+  }
+
+  recCancelBtn.onclick = stopRecording;
 </script>
 </body>
 </html>

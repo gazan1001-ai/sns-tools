@@ -26,12 +26,15 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    justify-content:center;
+    justify-content:flex-start;
     min-height:100vh;
-    overflow:hidden;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding: 24px 0;
     transition: background 0.4s ease;
     -webkit-tap-highlight-color: transparent;
   }
+  body.record-mode{ justify-content:center; }
 
   body.bg-black{ --bg:#000000; }
   body.bg-white{ --bg:#FFFFFF; --text:#0B0C10; --text-dim:#0B0C1080; --ring-track:#0B0C1014; --panel:#FFFFFFCC; }
@@ -85,10 +88,8 @@
   }
 
   .panel{
-    position:fixed;
-    bottom:28px;
-    left:50%;
-    transform:translateX(-50%);
+    position:relative;
+    margin-top:24px;
     background:var(--panel);
     backdrop-filter: blur(14px);
     border-radius:20px;
@@ -97,12 +98,10 @@
     flex-direction:column;
     gap:14px;
     width:min(92vw, 480px);
-    max-height:80vh;
-    overflow-y:auto;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.2s ease;
     z-index:10;
   }
-  body.record-mode .panel{ opacity:0; pointer-events:none; transform:translateX(-50%) translateY(20px); }
+  body.record-mode .panel{ display:none; }
 
   .row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .row-label{ font-size:12px; color:var(--text-dim); width:52px; flex:none; }
@@ -267,6 +266,24 @@
     </div>
 
     <div class="row">
+      <span class="row-label">数字</span>
+      <button data-textmode="show" class="opt-active">表示</button>
+      <button data-textmode="hide">非表示</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">状態表記</span>
+      <button data-labelmode="show" class="opt-active">表示(READY等)</button>
+      <button data-labelmode="hide">非表示</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">余白</span>
+      <button data-spacing="compact">コンパクト</button>
+      <button data-spacing="roomy" class="opt-active">ゆったり</button>
+    </div>
+
+    <div class="row">
       <button id="recordBtn">🎬 収録モード(UIを隠す)</button>
     </div>
 
@@ -274,14 +291,10 @@
 
     <div class="row">
       <span class="row-label">自動録画</span>
-      <input type="file" id="audioFile" accept="audio/*,video/*">
+      <button id="recStartBtn">🔴 自動録画スタート</button>
     </div>
     <div class="row">
-      <span class="row-label">開始〜終了</span>
-      <input type="text" id="recStart" placeholder="0:00">
-      〜
-      <input type="text" id="recEnd" placeholder="0:30">
-      <button id="recStartBtn">🔴 自動録画スタート</button>
+      <span style="font-size:11px;color:var(--text-dim);">↑ 上の「時間」設定がそのまま録画の長さになります</span>
     </div>
     <div class="row" id="recStatusRow" style="display:none;">
       <span class="rec-status" id="recStatusText">録画準備中...</span>
@@ -307,20 +320,19 @@
   const circleProgress = document.getElementById('circleProgress');
   const rectTrack = document.getElementById('rectTrack');
   const rectProgress = document.getElementById('rectProgress');
-  const CIRCLE_PERIM = 2 * Math.PI * 46;
+  const READOUT_FONT_UNITS = 19; // font-size as a fraction of the 100-unit stage (independent of shape)
 
   let shapeType = 'circle';      // circle | square | wide | tall
-  let strokeWidth = 3;
+  let strokeWidth = 6;
   let lineStyle = 'solid';       // solid | dashed | dotted
   let mode = 'down';             // down | up
   let currentBgKey = '';
   let currentAccent = '#F4F1EA';
+  let textVisible = true;
+  let labelVisible = true;
+  let spacingMode = 'roomy';     // compact | roomy — now controls the padding around the text
+  let currentGeom = null;        // the ring geometry computed to hug the readout text
 
-  function rectDims(aspect){
-    if (aspect === 'wide') return { w:92, h:52, rx:10 };
-    if (aspect === 'tall') return { w:52, h:92, rx:10 };
-    return { w:92, h:92, rx:8 }; // square
-  }
   function rectPerimeter(w,h,rx){
     return 2*(w+h) - 8*rx + 2*Math.PI*rx;
   }
@@ -338,37 +350,87 @@
   }
 
   function getActiveGeom(){
-    if (shapeType === 'circle'){
-      return { track:circleTrack, progress:circleProgress, perimeter:CIRCLE_PERIM };
-    }
-    const d = rectDims(shapeType);
-    return { track:rectTrack, progress:rectProgress, perimeter: rectPerimeter(d.w,d.h,d.rx), dims:d };
+    const isCircle = currentGeom.type === 'circle';
+    return {
+      track: isCircle ? circleTrack : rectTrack,
+      progress: isCircle ? circleProgress : rectProgress,
+      perimeter: currentGeom.perimeter
+    };
   }
 
+  function measureTextBoxUnits(){
+    // convert the readout's rendered pixel size into the SVG's 0-100 viewBox units
+    const stageSize = stage.getBoundingClientRect().width;
+    const rect = readout.getBoundingClientRect();
+    const unit = 100 / stageSize;
+    return { w: rect.width * unit, h: rect.height * unit };
+  }
+
+  function computeShapeGeom(){
+    const box = measureTextBoxUnits();
+    const padding = spacingMode === 'roomy' ? 14 : 8;
+
+    if (shapeType === 'circle'){
+      const diag = Math.hypot(box.w, box.h);
+      const r = Math.min(Math.max(diag/2 + padding, 20), 48);
+      return { type:'circle', cx:50, cy:50, r, perimeter: 2*Math.PI*r };
+    }
+
+    let w, h;
+    const baseW = box.w + padding*1.3;
+    const baseH = box.h + padding*1.3;
+    if (shapeType === 'square'){
+      w = h = Math.min(Math.max(Math.max(baseW, baseH), 30), 96);
+    } else if (shapeType === 'wide'){
+      h = Math.min(Math.max(baseH, 24), 96);
+      w = Math.min(Math.max(baseW, h * 1.5), 96);
+    } else { // tall
+      w = Math.min(Math.max(baseW, 24), 96);
+      h = Math.min(Math.max(baseH, w * 1.25), 96);
+    }
+    const rx = Math.min(w, h) * 0.16;
+    const x = (100 - w) / 2, y = (100 - h) / 2;
+    return { type:'rect', x, y, w, h, rx, perimeter: rectPerimeter(w, h, rx) };
+  }
+
+  function applyReadoutFontSize(){
+    const stageSize = stage.getBoundingClientRect().width;
+    readout.style.fontSize = Math.max(18, stageSize * (READOUT_FONT_UNITS/100)) + 'px';
+  }
+
+
   function updateGeometry(){
-    const isCircle = shapeType === 'circle';
+    applyReadoutFontSize();
+    const geom = computeShapeGeom();
+    currentGeom = geom;
+
+    const isCircle = geom.type === 'circle';
     circleTrack.classList.toggle('hidden', !isCircle);
     circleProgress.classList.toggle('hidden', !isCircle);
     rectTrack.classList.toggle('hidden', isCircle);
     rectProgress.classList.toggle('hidden', isCircle);
 
-    if (!isCircle){
-      const d = rectDims(shapeType);
-      const x = (100 - d.w) / 2, y = (100 - d.h) / 2;
+    if (isCircle){
+      [circleTrack, circleProgress].forEach(el => {
+        el.setAttribute('cx', geom.cx); el.setAttribute('cy', geom.cy); el.setAttribute('r', geom.r);
+      });
+    } else {
       [rectTrack, rectProgress].forEach(el => {
-        el.setAttribute('x', x); el.setAttribute('y', y);
-        el.setAttribute('width', d.w); el.setAttribute('height', d.h);
-        el.setAttribute('rx', d.rx);
+        el.setAttribute('x', geom.x); el.setAttribute('y', geom.y);
+        el.setAttribute('width', geom.w); el.setAttribute('height', geom.h);
+        el.setAttribute('rx', geom.rx);
       });
     }
 
-    const geom = getActiveGeom();
-    geom.track.setAttribute('stroke-width', strokeWidth);
-    geom.progress.setAttribute('stroke-width', strokeWidth);
-    const [on, off] = dasharrayFor(lineStyle, geom.perimeter, strokeWidth);
-    geom.progress.setAttribute('stroke-dasharray', `${on} ${off}`);
+    const active = getActiveGeom();
+    active.track.setAttribute('stroke-width', strokeWidth);
+    active.progress.setAttribute('stroke-width', strokeWidth);
+    const [on, off] = dasharrayFor(lineStyle, active.perimeter, strokeWidth);
+    active.progress.setAttribute('stroke-dasharray', `${on} ${off}`);
     render();
   }
+
+  window.addEventListener('resize', updateGeometry);
 
   let totalMs = 30000;
   let progressMs = 0;     // elapsed time, always counts 0 -> totalMs
@@ -552,6 +614,36 @@
     e.target.textContent = soundOn ? '🔊 音: ON' : '🔇 音: OFF';
   };
 
+  document.querySelectorAll('[data-textmode]').forEach(btn => {
+    btn.onclick = () => {
+      textVisible = btn.dataset.textmode === 'show';
+      document.querySelectorAll('[data-textmode]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      // visibility (not display) keeps the element's box measurable, so the
+      // ring can still size itself around where the text would be
+      readout.style.visibility = textVisible ? 'visible' : 'hidden';
+      updateGeometry();
+    };
+  });
+
+  document.querySelectorAll('[data-labelmode]').forEach(btn => {
+    btn.onclick = () => {
+      labelVisible = btn.dataset.labelmode === 'show';
+      document.querySelectorAll('[data-labelmode]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      statusLabel.style.display = labelVisible ? '' : 'none';
+    };
+  });
+
+  document.querySelectorAll('[data-spacing]').forEach(btn => {
+    btn.onclick = () => {
+      spacingMode = btn.dataset.spacing;
+      document.querySelectorAll('[data-spacing]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      updateGeometry();
+    };
+  });
+
   document.getElementById('recordBtn').onclick = () => {
     document.body.classList.add('record-mode');
   };
@@ -570,10 +662,7 @@
     }
   });
 
-  /* ---------------- 自動録画(音源に同期して自動収録) ---------------- */
-  const audioFileInput = document.getElementById('audioFile');
-  const recStartInput = document.getElementById('recStart');
-  const recEndInput = document.getElementById('recEnd');
+  /* ---------------- 自動録画(見た目そのまま・音声なしで収録) ---------------- */
   const recStartBtn = document.getElementById('recStartBtn');
   const recCancelBtn = document.getElementById('recCancelBtn');
   const recStatusRow = document.getElementById('recStatusRow');
@@ -584,23 +673,13 @@
   let mediaRecorder = null;
   let recChunks = [];
   let recRafId = null;
-  let recAudioCtx = null;
-  let recAudioEl = null;
-
-  function parseTimeStr(str){
-    if (!str) return NaN;
-    const parts = str.trim().split(':').map(Number);
-    if (parts.some(isNaN)) return NaN;
-    if (parts.length === 2) return parts[0]*60 + parts[1];
-    return parts[0];
-  }
 
   function getRecordGeom(){
-    if (shapeType === 'circle'){
-      return { type:'circle', box:{w:100,h:100}, cx:50, cy:50, r:46, perimeter: CIRCLE_PERIM };
+    const geom = computeShapeGeom();
+    if (geom.type === 'circle'){
+      return { type:'circle', box:{w:100,h:100}, cx:geom.cx, cy:geom.cy, r:geom.r, perimeter: geom.perimeter };
     }
-    const d = rectDims(shapeType);
-    return { type:'rect', box:{ w:d.w+8, h:d.h+8 }, x:4, y:4, w:d.w, h:d.h, rx:d.rx, perimeter: rectPerimeter(d.w,d.h,d.rx) };
+    return { type:'rect', box:{ w:geom.w+8, h:geom.h+8 }, x:4, y:4, w:geom.w, h:geom.h, rx:geom.rx, perimeter: geom.perimeter };
   }
 
   function pathForShape(ctx, geom, scale){
@@ -650,20 +729,22 @@
     pathForShape(ctx, geom, scale);
     ctx.stroke();
 
-    const displayMs = mode === 'down' ? remaining : progressMs;
-    ctx.setLineDash([]);
-    ctx.fillStyle = preset.text;
-    ctx.font = `700 ${Math.round(H*0.2)}px 'Space Mono', monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(fmt(displayMs), W/2, H/2);
+    if (textVisible){
+      const displayMs = mode === 'down' ? remaining : progressMs;
+      ctx.setLineDash([]);
+      ctx.fillStyle = preset.text;
+      const fontPx = READOUT_FONT_UNITS * scale;
+      ctx.font = `700 ${Math.round(fontPx)}px 'Space Mono', monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(fmt(displayMs), W/2, H/2);
+    }
   }
 
   function stopRecording(){
     if (!recordingActive) return;
     recordingActive = false;
     cancelAnimationFrame(recRafId);
-    if (recAudioEl){ recAudioEl.pause(); }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
     recStatusText.textContent = '保存中...';
     setTimeout(() => { recStatusRow.style.display = 'none'; }, 1500);
@@ -672,14 +753,9 @@
 
   recStartBtn.onclick = async () => {
     if (recordingActive) return;
-    const file = audioFileInput.files[0];
-    if (!file){ alert('音源(または動画)ファイルを選んでね'); return; }
-    const startSec = parseTimeStr(recStartInput.value || '0');
-    const endSec = parseTimeStr(recEndInput.value);
-    if (isNaN(startSec) || isNaN(endSec) || endSec <= startSec){
-      alert('開始・終了時間の形式を確認してね(例: 1:05)。終了は開始より後にしてください'); return;
+    if (!totalMs || totalMs <= 0){
+      alert('先に上の「時間」でカウントの長さをセットしてね'); return;
     }
-    const durMs = (endSec - startSec) * 1000;
 
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
 
@@ -689,29 +765,12 @@
     recCanvas.height = geom.box.h * SCALE;
     const ctx = recCanvas.getContext('2d');
 
-    recAudioEl = document.createElement('audio');
-    recAudioEl.src = URL.createObjectURL(file);
-    recAudioEl.crossOrigin = 'anonymous';
-    document.body.appendChild(recAudioEl);
-    await new Promise((res, rej) => {
-      recAudioEl.onloadedmetadata = res;
-      recAudioEl.onerror = rej;
-    }).catch(() => { alert('ファイルを読み込めなかった'); });
-    recAudioEl.currentTime = startSec;
-
-    if (!recAudioCtx) recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = recAudioCtx.createMediaElementSource(recAudioEl);
-    const dest = recAudioCtx.createMediaStreamDestination();
-    source.connect(dest);
-    source.connect(recAudioCtx.destination);
-
     const videoStream = recCanvas.captureStream(30);
-    const combined = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
 
-    let mimeType = 'video/webm;codecs=vp9,opus';
+    let mimeType = 'video/webm;codecs=vp9';
     if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
     try{
-      mediaRecorder = new MediaRecorder(combined, { mimeType });
+      mediaRecorder = new MediaRecorder(videoStream, { mimeType });
     }catch(e){
       alert('このブラウザは自動録画に対応していないみたい。デスクトップのChromeかEdgeで試してみて');
       return;
@@ -728,7 +787,6 @@
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      if (recAudioEl){ recAudioEl.remove(); recAudioEl = null; }
     };
 
     recordingActive = true;
@@ -736,9 +794,8 @@
     recStatusRow.style.display = 'flex';
     recStatusText.textContent = '録画準備中...';
 
-    setDuration(durMs);
+    reset(); // 0から確実にスタート
     mediaRecorder.start();
-    recAudioEl.play();
     start();
 
     function drawLoop(){

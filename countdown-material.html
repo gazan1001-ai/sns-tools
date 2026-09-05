@@ -238,6 +238,15 @@
     </div>
 
     <div class="row">
+      <span class="row-label">数字の色</span>
+      <button data-numcolor="auto" class="opt-active">自動(背景に合わせる)</button>
+      <div class="swatch numcolor-swatch" style="background:#F4F1EA" data-numcolor-hex="#F4F1EA"></div>
+      <div class="swatch numcolor-swatch" style="background:#000000; box-shadow:inset 0 0 0 1px rgba(244,241,234,0.35);" data-numcolor-hex="#000000"></div>
+      <div class="swatch numcolor-swatch" style="background:#FF6B35" data-numcolor-hex="#FF6B35"></div>
+      <div class="swatch numcolor-swatch" style="background:#9A9A9A" data-numcolor-hex="#9A9A9A"></div>
+    </div>
+
+    <div class="row">
       <span class="row-label">背景</span>
       <button data-bg="">ダーク</button>
       <button data-bg="bg-black">黒</button>
@@ -349,6 +358,7 @@
   let mode = 'down';             // down | up
   let currentBgKey = '';
   let currentAccent = '#F4F1EA';
+  let numberColor = 'auto'; // 'auto' (follow --text) or a hex string
   let textVisible = true;
   let labelVisible = true;
   let spacingMode = 'roomy';     // compact | roomy — now controls the padding around the text
@@ -456,6 +466,10 @@
   function applyReadoutFontSize(){
     const stageSize = stage.getBoundingClientRect().width;
     readout.style.fontSize = Math.max(18, stageSize * (READOUT_FONT_UNITS/100)) + 'px';
+  }
+
+  function applyNumberColor(){
+    readout.style.color = numberColor === 'auto' ? '' : numberColor;
   }
 
 
@@ -632,6 +646,26 @@
       document.documentElement.style.setProperty('--accent', currentAccent);
       document.querySelectorAll('[data-accent]').forEach(s => s.classList.remove('active'));
       sw.classList.add('active');
+    };
+  });
+
+  document.querySelectorAll('[data-numcolor]').forEach(btn => {
+    btn.onclick = () => {
+      numberColor = 'auto';
+      document.querySelectorAll('[data-numcolor]').forEach(b => b.classList.remove('opt-active'));
+      document.querySelectorAll('[data-numcolor-hex]').forEach(s => s.classList.remove('active'));
+      btn.classList.add('opt-active');
+      applyNumberColor();
+    };
+  });
+
+  document.querySelectorAll('[data-numcolor-hex]').forEach(sw => {
+    sw.onclick = () => {
+      numberColor = sw.dataset.numcolorHex;
+      document.querySelectorAll('[data-numcolor]').forEach(b => b.classList.remove('opt-active'));
+      document.querySelectorAll('[data-numcolor-hex]').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      applyNumberColor();
     };
   });
 
@@ -852,7 +886,7 @@
     if (textVisible){
       const displayMs = mode === 'down' ? remaining : progressMs;
       ctx.setLineDash([]);
-      ctx.fillStyle = preset.text;
+      ctx.fillStyle = numberColor === 'auto' ? preset.text : numberColor;
       const fontPx = READOUT_FONT_UNITS * scale;
       ctx.font = `700 ${Math.round(fontPx)}px 'Space Mono', monospace`;
       ctx.textAlign = 'center';

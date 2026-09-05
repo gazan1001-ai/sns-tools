@@ -59,7 +59,7 @@
     stroke-linecap:round;
     transition: fill 0.25s ease 0.05s, stroke 0.25s ease;
   }
-  .icon-wrap.filled .icon-path{ fill:var(--accent); stroke:var(--accent); }
+  .icon-wrap.filled .icon-path{ fill:var(--icon-color, var(--accent)); stroke:var(--icon-color, var(--accent)); }
   .icon-wrap.bump .icon-svg{ animation: bump 0.55s cubic-bezier(.22,1.6,.4,1); }
   @keyframes bump{
     0%{ transform:scale(1); }
@@ -99,7 +99,7 @@
     left:50%; top:50%;
     width:10px; height:10px;
     border-radius:50%;
-    background:var(--accent);
+    background:var(--icon-color, var(--accent));
     pointer-events:none;
   }
   .particle.play{ animation: burst 0.7s ease-out forwards; }
@@ -246,6 +246,24 @@
       <button data-icon="both">両方(横並び)</button>
     </div>
 
+    <div class="row" id="heartColorRow">
+      <span class="row-label">ハートの色</span>
+      <div class="swatch heart-swatch active" style="background:#F4423A" data-heart-color="#F4423A"></div>
+      <div class="swatch heart-swatch" style="background:#F4F1EA" data-heart-color="#F4F1EA"></div>
+      <div class="swatch heart-swatch" style="background:#FFD23F" data-heart-color="#FFD23F"></div>
+      <div class="swatch heart-swatch" style="background:#00D4FF" data-heart-color="#00D4FF"></div>
+      <div class="swatch heart-swatch" style="background:#9A9A9A" data-heart-color="#9A9A9A"></div>
+    </div>
+
+    <div class="row" id="thumbColorRow">
+      <span class="row-label">グッドの色</span>
+      <div class="swatch thumb-swatch" style="background:#F4423A" data-thumb-color="#F4423A"></div>
+      <div class="swatch thumb-swatch" style="background:#F4F1EA" data-thumb-color="#F4F1EA"></div>
+      <div class="swatch thumb-swatch" style="background:#FFD23F" data-thumb-color="#FFD23F"></div>
+      <div class="swatch thumb-swatch active" style="background:#00D4FF" data-thumb-color="#00D4FF"></div>
+      <div class="swatch thumb-swatch" style="background:#9A9A9A" data-thumb-color="#9A9A9A"></div>
+    </div>
+
     <div class="row">
       <span class="row-label">コンテナ</span>
       <button data-frame="off" class="opt-active">オフ(自由配置)</button>
@@ -335,6 +353,8 @@
   const likeStage = document.getElementById('likeStage');
   const subStage = document.getElementById('subStage');
   const iconStyleRow = document.getElementById('iconStyleRow');
+  const heartColorRow = document.getElementById('heartColorRow');
+  const thumbColorRow = document.getElementById('thumbColorRow');
   const frameColorRow = document.getElementById('frameColorRow');
   const frameOpacityRow = document.getElementById('frameOpacityRow');
   const frameOpacitySlider = document.getElementById('frameOpacity');
@@ -350,12 +370,16 @@
   let framed = false;
   let frameColor = '#000000';
   let frameOpacityPct = 70;
+  let heartColor = '#F4423A';
+  let thumbColor = '#00D4FF';
 
   function setIconPath(){
     iconPathHeart.setAttribute('d', ICONS.heart);
     iconPathThumb.setAttribute('d', ICONS.thumb);
     iconWrapHeart.style.display = (iconStyle === 'heart' || iconStyle === 'both') ? 'flex' : 'none';
     iconWrapThumb.style.display = (iconStyle === 'thumb' || iconStyle === 'both') ? 'flex' : 'none';
+    iconWrapHeart.style.setProperty('--icon-color', heartColor);
+    iconWrapThumb.style.setProperty('--icon-color', thumbColor);
   }
   setIconPath();
 
@@ -459,6 +483,8 @@
       likeStage.style.display = view === 'like' ? 'flex' : 'none';
       subStage.style.display = view === 'sub' ? 'flex' : 'none';
       iconStyleRow.style.display = view === 'like' ? 'flex' : 'none';
+      heartColorRow.style.display = view === 'like' ? 'flex' : 'none';
+      thumbColorRow.style.display = view === 'like' ? 'flex' : 'none';
     };
   });
 
@@ -467,6 +493,24 @@
       iconStyle = btn.dataset.icon;
       document.querySelectorAll('[data-icon]').forEach(b => b.classList.remove('opt-active'));
       btn.classList.add('opt-active');
+      setIconPath();
+    };
+  });
+
+  document.querySelectorAll('[data-heart-color]').forEach(sw => {
+    sw.onclick = () => {
+      heartColor = sw.dataset.heartColor;
+      document.querySelectorAll('[data-heart-color]').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      setIconPath();
+    };
+  });
+
+  document.querySelectorAll('[data-thumb-color]').forEach(sw => {
+    sw.onclick = () => {
+      thumbColor = sw.dataset.thumbColor;
+      document.querySelectorAll('[data-thumb-color]').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
       setIconPath();
     };
   });
@@ -663,11 +707,12 @@
 
     const iconCenters = both ? [cx-(iconSize+gap)/2, cx+(iconSize+gap)/2] : [cx];
     const styles = both ? ['heart','thumb'] : [iconStyle];
+    const colors = both ? [heartColor, thumbColor] : [iconStyle === 'heart' ? heartColor : thumbColor];
     iconCenters.forEach((icx, i) => {
       ctx.save();
       ctx.translate(icx, cy);
       ctx.scale(bumpScale, bumpScale);
-      drawIconPath(ctx, styles[i], iconSize, filled ? accent : null, filled ? accent : textColor, 5*scaleUnit);
+      drawIconPath(ctx, styles[i], iconSize, filled ? colors[i] : null, filled ? colors[i] : textColor, 5*scaleUnit);
       ctx.restore();
     });
 
@@ -693,7 +738,7 @@
     if (t < 700){
       const frac = t/700;
       const ease = 1 - Math.pow(1-frac, 2);
-      iconCenters.forEach(icx => {
+      iconCenters.forEach((icx, i) => {
         burst.particles.forEach(p => {
           const dx = Math.cos(p.angle)*p.dist*ease*scaleUnit;
           const dy = Math.sin(p.angle)*p.dist*ease*scaleUnit;
@@ -701,7 +746,7 @@
           const size = (10*(1-0.7*frac)) * scaleUnit;
           ctx.save();
           ctx.globalAlpha = opacity;
-          ctx.fillStyle = accent;
+          ctx.fillStyle = colors[i];
           ctx.beginPath();
           ctx.arc(icx+dx, cy+dy, size/2, 0, Math.PI*2);
           ctx.fill();

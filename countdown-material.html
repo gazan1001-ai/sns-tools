@@ -187,6 +187,7 @@
 
   <div class="stage" id="stage">
     <svg class="ring" viewBox="0 0 100 100">
+      <rect id="stampBg" x="3" y="3" width="94" height="94" rx="16" style="display:none;"></rect>
       <circle class="ring-track" id="circleTrack" cx="50" cy="50" r="46"></circle>
       <circle class="ring-progress" id="circleProgress" cx="50" cy="50" r="46"></circle>
       <rect class="ring-track" id="rectTrack" rx="8"></rect>
@@ -232,6 +233,7 @@
       <div class="swatch" style="background:#9A9A9A" data-accent="#9A9A9A"></div>
       <div class="swatch" style="background:#5C5C5C" data-accent="#5C5C5C"></div>
       <div class="swatch" style="background:#FF6B35" data-accent="#FF6B35"></div>
+      <div class="swatch" style="background:#000000; box-shadow:inset 0 0 0 1px rgba(244,241,234,0.35);" data-accent="#000000"></div>
     </div>
 
     <div class="row">
@@ -240,6 +242,24 @@
       <button data-bg="bg-black">黒</button>
       <button data-bg="bg-white">白</button>
       <button data-bg="bg-green">グリーンバック</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">コンテナ</span>
+      <button data-stamp="off" class="opt-active">オフ(透明・スタンプ用)</button>
+      <button data-stamp="on">オン(塗りつぶし枠)</button>
+    </div>
+    <div class="row" id="stampColorRow" style="display:none;">
+      <span class="row-label">枠の色</span>
+      <div class="swatch stamp-swatch active" style="background:#000000" data-stamp-color="#000000"></div>
+      <div class="swatch stamp-swatch" style="background:#FFFFFF" data-stamp-color="#FFFFFF"></div>
+      <div class="swatch stamp-swatch" style="background:#14151A" data-stamp-color="#14151A"></div>
+      <div class="swatch stamp-swatch" style="background:#FF6B35" data-stamp-color="#FF6B35"></div>
+    </div>
+    <div class="row" id="stampOpacityRow" style="display:none;">
+      <span class="row-label">枠の透明度</span>
+      <input type="range" id="stampOpacity" min="0" max="100" value="80">
+      <span id="stampOpacityValue">80%</span>
     </div>
 
     <div class="row">
@@ -332,6 +352,20 @@
   let labelVisible = true;
   let spacingMode = 'roomy';     // compact | roomy — now controls the padding around the text
   let currentGeom = null;        // the ring geometry computed to hug the readout text
+  let stamped = false;           // container/stamp mode on|off
+  let stampColor = '#000000';
+  let stampOpacityPct = 80;
+
+  function hexToRgba(hex, alphaPct){
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alphaPct/100})`;
+  }
+  function applyStampStyle(){
+    const stampBg = document.getElementById('stampBg');
+    stampBg.style.display = stamped ? '' : 'none';
+    stampBg.style.fill = hexToRgba(stampColor, stampOpacityPct);
+  }
 
   function rectPerimeter(w,h,rx){
     return 2*(w+h) - 8*rx + 2*Math.PI*rx;
@@ -565,14 +599,45 @@
     };
   });
 
-  document.querySelectorAll('.swatch').forEach(sw => {
+  document.querySelectorAll('[data-accent]').forEach(sw => {
     sw.onclick = () => {
       currentAccent = sw.dataset.accent;
       document.documentElement.style.setProperty('--accent', currentAccent);
-      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('[data-accent]').forEach(s => s.classList.remove('active'));
       sw.classList.add('active');
     };
   });
+
+  const stampColorRow = document.getElementById('stampColorRow');
+  const stampOpacityRow = document.getElementById('stampOpacityRow');
+  const stampOpacitySlider = document.getElementById('stampOpacity');
+  const stampOpacityValue = document.getElementById('stampOpacityValue');
+
+  document.querySelectorAll('[data-stamp]').forEach(btn => {
+    btn.onclick = () => {
+      stamped = btn.dataset.stamp === 'on';
+      document.querySelectorAll('[data-stamp]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      stampColorRow.style.display = stamped ? 'flex' : 'none';
+      stampOpacityRow.style.display = stamped ? 'flex' : 'none';
+      applyStampStyle();
+    };
+  });
+
+  document.querySelectorAll('[data-stamp-color]').forEach(sw => {
+    sw.onclick = () => {
+      stampColor = sw.dataset.stampColor;
+      document.querySelectorAll('[data-stamp-color]').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      applyStampStyle();
+    };
+  });
+
+  stampOpacitySlider.oninput = () => {
+    stampOpacityPct = parseInt(stampOpacitySlider.value, 10);
+    stampOpacityValue.textContent = stampOpacityPct + '%';
+    applyStampStyle();
+  };
 
   document.querySelectorAll('[data-bg]').forEach(btn => {
     btn.onclick = () => {
@@ -682,6 +747,17 @@
     return { type:'rect', box:{ w:geom.w+8, h:geom.h+8 }, x:4, y:4, w:geom.w, h:geom.h, rx:geom.rx, perimeter: geom.perimeter };
   }
 
+  function roundRectCanvasPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    if (ctx.roundRect){ ctx.roundRect(x,y,w,h,r); return; }
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
   function pathForShape(ctx, geom, scale){
     ctx.beginPath();
     if (geom.type === 'circle'){
@@ -707,6 +783,12 @@
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle = preset.bg;
     ctx.fillRect(0,0,W,H);
+
+    if (stamped){
+      ctx.fillStyle = hexToRgba(stampColor, stampOpacityPct);
+      roundRectCanvasPath(ctx, geom.box.w*0.02*scale, geom.box.h*0.02*scale, geom.box.w*0.96*scale, geom.box.h*0.96*scale, geom.box.w*0.06*scale);
+      ctx.fill();
+    }
 
     const remaining = totalMs - progressMs;
     const filledFrac = totalMs > 0 ? progressMs / totalMs : 0;

@@ -20,11 +20,13 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'Zen Kaku Gothic New', system-ui, sans-serif;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:100vh; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    min-height:100vh; overflow-y:auto; overflow-x:hidden;
+    padding: 24px 0;
     transition: background 0.4s ease;
     -webkit-tap-highlight-color: transparent;
   }
+  body.record-mode{ justify-content:center; }
   body.bg-black{ --bg:#000000; }
   body.bg-white{ --bg:#FFFFFF; --text:#0B0C10; --text-dim:#0B0C1080; --panel:#FFFFFFCC; }
   body.bg-green{ --bg:#00FF00; --text:#050505; --text-dim:#05050580; --panel:#FFFFFFCC; }
@@ -37,8 +39,17 @@
   }
 
   /* ---------- LIKE ---------- */
-  #likeStage{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-  .icon-wrap{ position:relative; width:44%; aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+  #likeStage{ display:flex; flex-direction:column; align-items:center; }
+  .like-container{
+    position:relative;
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+    padding: 30px 40px;
+    border-radius: 26px;
+    transition: background-color 0.2s ease;
+  }
+  .like-container.framed{ overflow:hidden; }
+  .icon-row{ display:flex; align-items:center; justify-content:center; gap:22px; }
+  .icon-wrap{ position:relative; width:34vmin; max-width:190px; aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
   .icon-svg{ width:100%; height:100%; overflow:visible; }
   .icon-path{
     fill:none;
@@ -72,15 +83,15 @@
     font-family:'Space Mono', monospace;
     font-weight:700;
     color:var(--accent);
-    font-size:clamp(16px, 3.4vmin, 22px);
+    font-size:clamp(22px, 4.6vmin, 30px);
     opacity:0;
     pointer-events:none;
   }
-  .floater.play{ animation: floatUp 0.9s ease-out forwards; }
+  .floater.play{ animation: floatUp 1.2s ease-out 0.18s forwards; }
   @keyframes floatUp{
     0%{ opacity:0; transform:translate(-50%, 0px) scale(0.7); }
-    20%{ opacity:1; transform:translate(-50%, -6px) scale(1); }
-    100%{ opacity:0; transform:translate(-50%, -46px) scale(1); }
+    18%{ opacity:1; transform:translate(-50%, -6px) scale(1.08); }
+    100%{ opacity:0; transform:translate(-50%, -50px) scale(1); }
   }
 
   .particle{
@@ -150,15 +161,15 @@
 
   /* ---------- panel ---------- */
   .panel{
-    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    position:relative; margin-top:24px;
     background:var(--panel); backdrop-filter:blur(14px);
     border-radius:20px; padding:16px 20px;
     display:flex; flex-direction:column; gap:14px;
-    width:min(92vw, 460px); max-height:80vh; overflow-y:auto;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    width:min(92vw, 460px);
+    transition: opacity 0.2s ease;
     z-index:10;
   }
-  body.record-mode .panel{ opacity:0; pointer-events:none; transform:translateX(-50%) translateY(20px); }
+  body.record-mode .panel{ display:none; }
   .row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .row-label{ font-size:12px; color:var(--text-dim); width:52px; flex:none; }
   button{
@@ -193,11 +204,18 @@
 
   <div class="stage">
     <div id="likeStage">
-      <div class="icon-wrap" id="iconWrap">
-        <svg class="icon-svg" viewBox="0 0 100 100" id="iconSvg"></svg>
+      <div class="like-container" id="likeContainer">
+        <div class="icon-row" id="iconRow">
+          <div class="icon-wrap" id="iconWrapHeart">
+            <svg class="icon-svg" viewBox="0 0 100 100"><path class="icon-path" id="iconPathHeart"></path></svg>
+          </div>
+          <div class="icon-wrap" id="iconWrapThumb" style="display:none;">
+            <svg class="icon-svg" viewBox="0 0 100 100"><path class="icon-path" id="iconPathThumb"></path></svg>
+          </div>
+        </div>
         <div class="floater" id="floater">+1</div>
+        <div class="count" id="count">128</div>
       </div>
-      <div class="count" id="count">128</div>
     </div>
 
     <div id="subStage" style="display:none;">
@@ -225,6 +243,26 @@
       <span class="row-label">アイコン</span>
       <button data-icon="heart" class="opt-active">ハート</button>
       <button data-icon="thumb">親指</button>
+      <button data-icon="both">両方(横並び)</button>
+    </div>
+
+    <div class="row">
+      <span class="row-label">コンテナ</span>
+      <button data-frame="off" class="opt-active">オフ(自由配置)</button>
+      <button data-frame="on">オン(枠内に収める)</button>
+    </div>
+    <div class="row" id="frameColorRow" style="display:none;">
+      <span class="row-label">枠の色</span>
+      <div class="swatch frame-swatch active" style="background:#000000" data-frame-color="#000000"></div>
+      <div class="swatch frame-swatch" style="background:#FFFFFF" data-frame-color="#FFFFFF"></div>
+      <div class="swatch frame-swatch" style="background:#14151A" data-frame-color="#14151A"></div>
+      <div class="swatch frame-swatch" style="background:#F4423A" data-frame-color="#F4423A"></div>
+      <div class="swatch frame-swatch" style="background:#FFD23F" data-frame-color="#FFD23F"></div>
+    </div>
+    <div class="row" id="frameOpacityRow" style="display:none;">
+      <span class="row-label">枠の透明度</span>
+      <input type="range" id="frameOpacity" min="0" max="100" value="70">
+      <span id="frameOpacityValue">70%</span>
     </div>
 
     <div class="row">
@@ -258,9 +296,9 @@
 
     <div class="row">
       <span class="row-label">録画</span>
-      <button data-recdur="3000" class="opt-active">3秒</button>
-      <button data-recdur="5000">5秒</button>
-      <button data-recdur="10000">10秒</button>
+      <button data-reccount="1" class="opt-active">1回</button>
+      <button data-reccount="3">3回</button>
+      <button data-reccount="5">5回</button>
     </div>
 
     <div class="row">
@@ -284,8 +322,11 @@
     thumb: 'M30 46 L30 84 L18 84 L18 46 Z M30 46 L44 14 C46 10 52 10 54 14 C56 18 56 24 54 30 L48 46 L76 46 C82 46 86 52 84 58 L76 80 C74 83 71 84 68 84 L30 84'
   };
 
-  const iconSvg = document.getElementById('iconSvg');
-  const iconWrap = document.getElementById('iconWrap');
+  const iconPathHeart = document.getElementById('iconPathHeart');
+  const iconPathThumb = document.getElementById('iconPathThumb');
+  const iconWrapHeart = document.getElementById('iconWrapHeart');
+  const iconWrapThumb = document.getElementById('iconWrapThumb');
+  const likeContainer = document.getElementById('likeContainer');
   const floater = document.getElementById('floater');
   const countEl = document.getElementById('count');
   const bellWrap = document.getElementById('bellWrap');
@@ -294,6 +335,10 @@
   const likeStage = document.getElementById('likeStage');
   const subStage = document.getElementById('subStage');
   const iconStyleRow = document.getElementById('iconStyleRow');
+  const frameColorRow = document.getElementById('frameColorRow');
+  const frameOpacityRow = document.getElementById('frameOpacityRow');
+  const frameOpacitySlider = document.getElementById('frameOpacity');
+  const frameOpacityValue = document.getElementById('frameOpacityValue');
 
   let view = 'like';
   let iconStyle = 'heart';
@@ -302,11 +347,28 @@
   let subscribed = false;
   let loopMs = 0;
   let loopTimer = null;
+  let framed = false;
+  let frameColor = '#000000';
+  let frameOpacityPct = 70;
 
   function setIconPath(){
-    iconSvg.innerHTML = `<path class="icon-path" d="${ICONS[iconStyle]}"></path>`;
+    iconPathHeart.setAttribute('d', ICONS.heart);
+    iconPathThumb.setAttribute('d', ICONS.thumb);
+    iconWrapHeart.style.display = (iconStyle === 'heart' || iconStyle === 'both') ? 'flex' : 'none';
+    iconWrapThumb.style.display = (iconStyle === 'thumb' || iconStyle === 'both') ? 'flex' : 'none';
   }
   setIconPath();
+
+  function hexToRgba(hex, alphaPct){
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alphaPct/100})`;
+  }
+  function applyFrameStyle(){
+    likeContainer.classList.toggle('framed', framed);
+    likeContainer.style.backgroundColor = framed ? hexToRgba(frameColor, frameOpacityPct) : 'transparent';
+  }
+  applyFrameStyle();
 
   function spawnParticles(container, count, colorVar){
     for (let i=0;i<count;i++){
@@ -339,22 +401,35 @@
     }
   }
 
+  function activeIconWraps(){
+    const wraps = [];
+    if (iconStyle === 'heart' || iconStyle === 'both') wraps.push(iconWrapHeart);
+    if (iconStyle === 'thumb' || iconStyle === 'both') wraps.push(iconWrapThumb);
+    return wraps;
+  }
+
   function playLike(){
     liked = !liked;
-    iconWrap.classList.toggle('filled', liked);
-    iconWrap.classList.remove('bump');
-    void iconWrap.offsetWidth;
-    iconWrap.classList.add('bump');
+    const wraps = activeIconWraps();
+    wraps.forEach(w => {
+      w.classList.toggle('filled', liked);
+      w.classList.remove('bump');
+      void w.offsetWidth;
+      w.classList.add('bump');
+    });
 
-    likeCount += liked ? 1 : -1;
-    countEl.textContent = likeCount;
+    // a short pause before the count/+1 lands, so the tap doesn't feel instant
+    setTimeout(() => {
+      likeCount += liked ? 1 : -1;
+      countEl.textContent = likeCount;
 
-    floater.textContent = liked ? '+1' : '−1';
-    floater.classList.remove('play');
-    void floater.offsetWidth;
-    floater.classList.add('play');
+      floater.textContent = liked ? '+1' : '−1';
+      floater.classList.remove('play');
+      void floater.offsetWidth;
+      floater.classList.add('play');
+    }, 220);
 
-    if (liked) spawnParticles(iconWrap, 10);
+    if (liked) wraps.forEach(w => spawnParticles(w, iconStyle === 'both' ? 7 : 10));
   }
 
   function playSub(){
@@ -396,13 +471,41 @@
     };
   });
 
+  document.querySelectorAll('[data-frame]').forEach(btn => {
+    btn.onclick = () => {
+      framed = btn.dataset.frame === 'on';
+      document.querySelectorAll('[data-frame]').forEach(b => b.classList.remove('opt-active'));
+      btn.classList.add('opt-active');
+      frameColorRow.style.display = framed ? 'flex' : 'none';
+      frameOpacityRow.style.display = framed ? 'flex' : 'none';
+      applyFrameStyle();
+    };
+  });
+
+  document.querySelectorAll('[data-frame-color]').forEach(sw => {
+    sw.onclick = () => {
+      frameColor = sw.dataset.frameColor;
+      document.querySelectorAll('[data-frame-color]').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      applyFrameStyle();
+    };
+  });
+
+  frameOpacitySlider.oninput = () => {
+    frameOpacityPct = parseInt(frameOpacitySlider.value, 10);
+    frameOpacityValue.textContent = frameOpacityPct + '%';
+    applyFrameStyle();
+  };
+
   document.getElementById('playBtn').onclick = playCurrent;
-  iconWrap.onclick = () => { if (view === 'like') playLike(); };
+  iconWrapHeart.onclick = () => { if (view === 'like') playLike(); };
+  iconWrapThumb.onclick = () => { if (view === 'like') playLike(); };
   subBtn.onclick = () => { if (view === 'sub') playSub(); };
 
   document.getElementById('resetViewBtn').onclick = () => {
     liked = false; likeCount = 128; countEl.textContent = likeCount;
-    iconWrap.classList.remove('filled','bump');
+    iconWrapHeart.classList.remove('filled','bump');
+    iconWrapThumb.classList.remove('filled','bump');
     subscribed = false; subLabel.textContent = '登録する';
     subBtn.classList.remove('play'); bellWrap.classList.remove('ring');
   };
@@ -419,10 +522,10 @@
     };
   });
 
-  document.querySelectorAll('.swatch').forEach(sw => {
+  document.querySelectorAll('[data-accent]').forEach(sw => {
     sw.onclick = () => {
       document.documentElement.style.setProperty('--accent', sw.dataset.accent);
-      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('[data-accent]').forEach(s => s.classList.remove('active'));
       sw.classList.add('active');
     };
   });
@@ -456,16 +559,16 @@
   const recStatusRow = document.getElementById('recStatusRow');
   const recStatusText = document.getElementById('recStatusText');
 
-  let recDurationMs = 3000;
+  let recRepeatCount = 1;
   let recordingActive = false;
   let mediaRecorder = null;
   let recChunks = [];
   let recRafId = null;
 
-  document.querySelectorAll('[data-recdur]').forEach(btn => {
+  document.querySelectorAll('[data-reccount]').forEach(btn => {
     btn.onclick = () => {
-      recDurationMs = parseInt(btn.dataset.recdur, 10);
-      document.querySelectorAll('[data-recdur]').forEach(b => b.classList.remove('opt-active'));
+      recRepeatCount = parseInt(btn.dataset.reccount, 10);
+      document.querySelectorAll('[data-reccount]').forEach(b => b.classList.remove('opt-active'));
       btn.classList.add('opt-active');
     };
   });
@@ -533,31 +636,55 @@
 
     const scaleUnit = H/380;
     const cx = W/2, cy = H*0.42;
-    const iconSize = Math.min(W,H)*0.30;
+    const both = iconStyle === 'both';
+    const iconSize = Math.min(W,H) * (both ? 0.22 : 0.30);
+    const gap = iconSize * 0.5;
+
+    // frame box (drawn behind, and used to clip motion inside it when framed)
+    const rowWidth = both ? (iconSize*2 + gap) : iconSize;
+    const padX = iconSize*0.5, padTop = iconSize*0.95, padBottom = iconSize*0.35;
+    const boxW = rowWidth + padX*2, boxH = iconSize + padTop + padBottom;
+    const boxX = cx - boxW/2, boxY = cy - iconSize/2 - padTop;
+
+    if (framed){
+      roundRectPath(ctx, boxX, boxY, boxW, boxH, boxH*0.14);
+      ctx.fillStyle = hexToRgba(frameColor, frameOpacityPct);
+      ctx.fill();
+      ctx.save();
+      roundRectPath(ctx, boxX, boxY, boxW, boxH, boxH*0.14);
+      ctx.clip();
+    }
 
     let bumpScale = 1;
     if (t < 550){
       bumpScale = interpKeyframes([[0,1],[192,1.32],[330,0.92],[550,1]], t);
     }
-    const filled = t >= 0; // this trigger represents a "like" action
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(bumpScale, bumpScale);
-    drawIconPath(ctx, iconStyle, iconSize, filled ? accent : null, filled ? accent : textColor, 5*scaleUnit);
-    ctx.restore();
+    const filled = t >= 0;
 
-    if (t < 900){
+    const iconCenters = both ? [cx-(iconSize+gap)/2, cx+(iconSize+gap)/2] : [cx];
+    const styles = both ? ['heart','thumb'] : [iconStyle];
+    iconCenters.forEach((icx, i) => {
+      ctx.save();
+      ctx.translate(icx, cy);
+      ctx.scale(bumpScale, bumpScale);
+      drawIconPath(ctx, styles[i], iconSize, filled ? accent : null, filled ? accent : textColor, 5*scaleUnit);
+      ctx.restore();
+    });
+
+    const floaterDelay = 400; // matches the JS 220ms pause + CSS 180ms animation-delay
+    const ft = t - floaterDelay;
+    if (ft >= 0 && ft < 1200){
       const f = {
-        op: interpKeyframes([[0,0],[180,1],[900,0]], t),
-        y: interpKeyframes([[0,0],[180,-6],[900,-46]], t) * scaleUnit,
-        s: interpKeyframes([[0,0.7],[180,1],[900,1]], t)
+        op: interpKeyframes([[0,0],[216,1],[1200,0]], ft),
+        y: interpKeyframes([[0,0],[216,-6],[1200,-50]], ft) * scaleUnit,
+        s: interpKeyframes([[0,0.7],[216,1.08],[1200,1]], ft)
       };
       ctx.save();
       ctx.globalAlpha = Math.max(0, f.op);
       ctx.translate(cx, cy - iconSize*0.95 + f.y);
       ctx.scale(f.s, f.s);
       ctx.fillStyle = accent;
-      ctx.font = `700 ${Math.round(iconSize*0.26)}px 'Space Mono', monospace`;
+      ctx.font = `700 ${Math.round(iconSize*0.32)}px 'Space Mono', monospace`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('+1', 0, 0);
       ctx.restore();
@@ -566,20 +693,24 @@
     if (t < 700){
       const frac = t/700;
       const ease = 1 - Math.pow(1-frac, 2);
-      burst.particles.forEach(p => {
-        const dx = Math.cos(p.angle)*p.dist*ease*scaleUnit;
-        const dy = Math.sin(p.angle)*p.dist*ease*scaleUnit;
-        const opacity = Math.max(0, 1-frac);
-        const size = (10*(1-0.7*frac)) * scaleUnit;
-        ctx.save();
-        ctx.globalAlpha = opacity;
-        ctx.fillStyle = accent;
-        ctx.beginPath();
-        ctx.arc(cx+dx, cy+dy, size/2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.restore();
+      iconCenters.forEach(icx => {
+        burst.particles.forEach(p => {
+          const dx = Math.cos(p.angle)*p.dist*ease*scaleUnit;
+          const dy = Math.sin(p.angle)*p.dist*ease*scaleUnit;
+          const opacity = Math.max(0, 1-frac);
+          const size = (10*(1-0.7*frac)) * scaleUnit;
+          ctx.save();
+          ctx.globalAlpha = opacity;
+          ctx.fillStyle = accent;
+          ctx.beginPath();
+          ctx.arc(icx+dx, cy+dy, size/2, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        });
       });
     }
+
+    if (framed) ctx.restore();
   }
 
   function drawBellPath(ctx, size, color, lineWidth){
@@ -691,11 +822,13 @@
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     };
 
-    // pre-schedule each replay of the animation across the recording duration
-    const LOOP_INTERVAL = 1400;
+    // pre-schedule each replay of the animation, based on the selected repeat count
+    const LOOP_INTERVAL = view === 'like' ? 1800 : 1600;
+    const recDurationMs = 100 + recRepeatCount * LOOP_INTERVAL;
     const triggers = [];
     let baseCount = likeCount;
-    for (let time = 100; time < recDurationMs; time += LOOP_INTERVAL){
+    for (let i = 0; i < recRepeatCount; i++){
+      const time = 100 + i * LOOP_INTERVAL;
       baseCount += 1;
       triggers.push({
         time,

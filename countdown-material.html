@@ -372,7 +372,7 @@
   function updateStampGeometry(){
     const stampBg = document.getElementById('stampBg');
     if (!stamped || !currentGeom) return;
-    const pad = 6; // breathing room between the ring and the stamp's edge, in viewBox units
+    const pad = 3; // breathing room between the ring and the stamp's edge, in viewBox units
     let x, y, w, h, rx;
     if (currentGeom.type === 'circle'){
       const r = currentGeom.r + pad;
@@ -813,7 +813,7 @@
 
     if (stamped){
       ctx.fillStyle = hexToRgba(stampColor, stampOpacityPct);
-      const pad = 3*scale;
+      const pad = 1.5*scale;
       if (geom.type === 'circle'){
         const r = geom.r*scale + pad;
         ctx.beginPath();
